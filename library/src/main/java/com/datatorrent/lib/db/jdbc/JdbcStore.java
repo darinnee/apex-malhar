@@ -1,17 +1,20 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.db.jdbc;
 
@@ -22,6 +25,7 @@ import java.util.Properties;
 
 import javax.validation.constraints.NotNull;
 
+import org.codehaus.jackson.annotate.JsonIgnore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,8 +33,8 @@ import com.google.common.base.CharMatcher;
 import com.google.common.base.Splitter;
 import com.google.common.collect.Iterables;
 
-import com.datatorrent.netlet.util.DTThrowable;
 import com.datatorrent.lib.db.Connectable;
+import com.datatorrent.netlet.util.DTThrowable;
 
 /**
  * A {@link Connectable} that uses jdbc to connect to stores.
@@ -44,7 +48,7 @@ public class JdbcStore implements Connectable
   private String databaseUrl;
   @NotNull
   private String databaseDriver;
-  private final Properties connectionProperties;
+  private Properties connectionProperties;
   protected transient Connection connection = null;
 
   /*
@@ -115,14 +119,15 @@ public class JdbcStore implements Connectable
   }
 
   /**
-   * Connection Properties for JDBC Connection.
-   * Sets the properties on the jdbc connection.
+   * Sets the connection properties on JDBC connection. Connection properties are provided as a string.
+   *
    * @param connectionProps Comma separated list of properties. Property key and value are separated by colon.
-   *                             eg. user:xyz,password:ijk
+   *                        eg. user:xyz,password:ijk
    */
   public void setConnectionProperties(String connectionProps)
   {
-    String[] properties = Iterables.toArray(Splitter.on(CharMatcher.anyOf(":,")).omitEmptyStrings().trimResults().split(connectionProps), String.class);
+    String[] properties = Iterables.toArray(Splitter.on(CharMatcher.anyOf(":,")).omitEmptyStrings().trimResults()
+        .split(connectionProps), String.class);
     for (int i = 0; i < properties.length; i += 2) {
       if (i + 1 < properties.length) {
         connectionProperties.put(properties[i], properties[i + 1]);
@@ -131,8 +136,17 @@ public class JdbcStore implements Connectable
   }
 
   /**
-   * Connection Properties for JDBC Connection.
-   * Gets the properties on the jdbc connection.
+   * Sets the connection properties on JDBC connection.
+   *
+   * @param connectionProperties connection properties.
+   */
+  public void setConnectionProperties(Properties connectionProperties)
+  {
+    this.connectionProperties = connectionProperties;
+  }
+
+  /**
+   * Get the connection properties of JDBC connection.
    */
   public Properties getConnectionProperties()
   {
@@ -151,8 +165,7 @@ public class JdbcStore implements Connectable
       connection = DriverManager.getConnection(databaseUrl, connectionProperties);
 
       logger.debug("JDBC connection Success");
-    }
-    catch (Throwable t) {
+    } catch (Throwable t) {
       DTThrowable.rethrow(t);
     }
   }
@@ -163,21 +176,22 @@ public class JdbcStore implements Connectable
   @Override
   public void disconnect()
   {
-    try {
-      connection.close();
-    }
-    catch (SQLException ex) {
-      throw new RuntimeException("closing database resource", ex);
+    if (connection != null) {
+      try {
+        connection.close();
+      } catch (SQLException ex) {
+        throw new RuntimeException("closing database resource", ex);
+      }
     }
   }
 
   @Override
+  @JsonIgnore
   public boolean isConnected()
   {
     try {
-      return !connection.isClosed();
-    }
-    catch (SQLException e) {
+      return connection != null ? !connection.isClosed() : false;
+    } catch (SQLException e) {
       throw new RuntimeException("is isConnected", e);
     }
   }

@@ -1,32 +1,34 @@
-/*
- * Copyright (c) 2015 DataTorrent, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.appdata.datastructs;
 
 import java.util.Map;
 import java.util.Set;
 
-import com.esotericsoftware.kryo.Kryo;
+import org.junit.Assert;
+import org.junit.Test;
+
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
-import org.junit.Assert;
-import org.junit.Test;
-
-import com.datatorrent.lib.util.TestUtils;
+import com.datatorrent.lib.util.KryoCloneUtils;
 
 public class DimensionalTableTest
 {
@@ -35,7 +37,7 @@ public class DimensionalTableTest
   {
     DimensionalTable<Integer> table = createTestTable();
 
-    TestUtils.clone(new Kryo(), table);
+    KryoCloneUtils.cloneObject(table);
   }
 
   @Test
@@ -44,7 +46,7 @@ public class DimensionalTableTest
     DimensionalTable<Integer> table = createTestTable();
     int size = table.size();
 
-    table = TestUtils.clone(new Kryo(), table);
+    table = KryoCloneUtils.cloneObject(table);
     Assert.assertEquals(size, table.size());
   }
 
@@ -54,7 +56,7 @@ public class DimensionalTableTest
     DimensionalTable<Integer> table = createTestTable();
 
     Integer point = table.getDataPoint(Lists.newArrayList("google", "taco bell", "Ukraine"));
-    Assert.assertEquals((Integer) 6, point);
+    Assert.assertEquals((Integer)6, point);
 
     Map<String, String> selectionValues = Maps.newHashMap();
     selectionValues.put("publisher", "amazon");
@@ -62,7 +64,7 @@ public class DimensionalTableTest
     selectionValues.put("location", "Czech");
 
     point = table.getDataPoint(selectionValues);
-    Assert.assertEquals((Integer) 7, point);
+    Assert.assertEquals((Integer)7, point);
   }
 
   @Test
@@ -101,9 +103,7 @@ public class DimensionalTableTest
   @Test
   public void duplicateAppendTest()
   {
-    DimensionalTable<Integer> table = new DimensionalTable<Integer>(Lists.newArrayList("publisher",
-                                                                                       "advertiser",
-                                                                                       "location"));
+    DimensionalTable<Integer> table = new DimensionalTable<Integer>(Lists.newArrayList("publisher", "advertiser", "location"));
 
     table.appendRow(1, "google", "starbucks", "CA");
     table.appendRow(2, "google", "starbucks", "CA");
@@ -144,9 +144,7 @@ public class DimensionalTableTest
 
   private DimensionalTable<Integer> createTestTable()
   {
-    DimensionalTable<Integer> table = new DimensionalTable<Integer>(Lists.newArrayList("publisher",
-                                                                                       "advertiser",
-                                                                                       "location"));
+    DimensionalTable<Integer> table = new DimensionalTable<Integer>(Lists.newArrayList("publisher", "advertiser", "location"));
 
     table.appendRow(1, "google", "starbucks", "CA");
     table.appendRow(2, "amazon", "walmart", "NY");

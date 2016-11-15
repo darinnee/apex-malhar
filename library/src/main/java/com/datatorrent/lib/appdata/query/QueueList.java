@@ -1,17 +1,20 @@
-/*
- * Copyright (c) 2015 DataTorrent, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.appdata.query;
 
@@ -57,11 +60,11 @@ public class QueueList<T>
    */
   public void enqueue(QueueListNode<T> node)
   {
-    synchronized(lock) {
+    synchronized (lock) {
       Preconditions.checkNotNull(node);
       size++;
 
-      if(head == null) {
+      if (head == null) {
         head = node;
         tail = node;
         node.setNext(null);
@@ -82,7 +85,7 @@ public class QueueList<T>
    */
   public QueueListNode<T> getHead()
   {
-    synchronized(lock) {
+    synchronized (lock) {
       return head;
     }
   }
@@ -93,27 +96,24 @@ public class QueueList<T>
    */
   public void removeNode(QueueListNode<T> node)
   {
-    synchronized(lock) {
+    synchronized (lock) {
       size--;
 
-    //Handle the case when adding to the end of list and
+      //Handle the case when adding to the end of list and
       //removing a node in parallel
-      if(head == node) {
-        if(tail == node) {
+      if (head == node) {
+        if (tail == node) {
           head = null;
           tail = null;
-        }
-        else {
+        } else {
           head = node.getNext();
           head.setPrev(null);
         }
-      }
-      else {
-        if(tail == node) {
+      } else {
+        if (tail == node) {
           tail = node.getPrev();
           tail.setNext(null);
-        }
-        else {
+        } else {
           node.getPrev().setNext(node.getNext());
           node.getNext().setPrev(node.getPrev());
         }

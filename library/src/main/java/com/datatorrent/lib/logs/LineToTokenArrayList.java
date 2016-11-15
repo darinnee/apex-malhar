@@ -1,17 +1,20 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.logs;
 
@@ -53,7 +56,7 @@ import com.datatorrent.lib.util.UnifierArrayList;
  * @since 0.3.2
  */
 @Stateless
-@OperatorAnnotation(partitionable=true)
+@OperatorAnnotation(partitionable = true)
 public class LineToTokenArrayList extends BaseLineTokenizer
 {
   protected transient ArrayList<String> tokentuple = null;
@@ -76,15 +79,16 @@ public class LineToTokenArrayList extends BaseLineTokenizer
   };
 
   /**
-	 * This output port emits a map from tokens to sub tokens.
-	 */
+   * This output port emits a map from tokens to sub tokens.
+   */
   @OutputPortFieldAnnotation(optional = true)
-  public final transient DefaultOutputPort<ArrayList<HashMap<String, ArrayList<String>>>> splittokens = new DefaultOutputPort<ArrayList<HashMap<String, ArrayList<String>>>>()
+  public final transient DefaultOutputPort<ArrayList<HashMap<String, ArrayList<String>>>> splittokens =
+      new DefaultOutputPort<ArrayList<HashMap<String, ArrayList<String>>>>()
   {
     @Override
     public Unifier<ArrayList<HashMap<String, ArrayList<String>>>> getUnifier()
     {
-      return new UnifierArrayList<HashMap<String, ArrayList<String>>>();
+      return new UnifierArrayList<>();
     }
   };
 
@@ -149,8 +153,7 @@ public class LineToTokenArrayList extends BaseLineTokenizer
   {
     if (smap.isEmpty()) {
       smap.put(subtok, vals);
-    }
-    else {
+    } else {
       vals.add(subtok);
     }
   }

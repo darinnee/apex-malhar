@@ -1,44 +1,50 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.io;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
 
 import javax.validation.constraints.NotNull;
+
+import org.apache.apex.malhar.lib.wal.WindowDataManager;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.collect.TreeMultimap;
 
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FileStatus;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
-
 import com.datatorrent.api.Component;
 import com.datatorrent.api.Context;
 import com.datatorrent.api.DAG;
 import com.datatorrent.api.StorageAgent;
 import com.datatorrent.api.annotation.Stateless;
-
-import com.datatorrent.lib.io.fs.AbstractFileInputOperator;
-
 import com.datatorrent.common.util.FSStorageAgent;
+import com.datatorrent.lib.io.fs.AbstractFileInputOperator;
 
 /**
  * An idempotent storage manager allows an operator to emit the same tuples in every replayed application window. An idempotent agent
@@ -51,12 +57,14 @@ import com.datatorrent.common.util.FSStorageAgent;
  * application window boundaries.
  *
  * @since 2.0.0
+ * @deprecated use {@link WindowDataManager}
  */
-
+@Deprecated
 public interface IdempotentStorageManager extends StorageAgent, Component<Context.OperatorContext>
 {
   /**
    * Gets the largest window for which there is recovery data.
+   * @return Returns the window id
    */
   long getLargestRecoveryWindow();
 
@@ -154,7 +162,7 @@ public interface IdempotentStorageManager extends StorageAgent, Component<Contex
 
             for (FileStatus status : fs.listStatus(operatorDirStatus.getPath())) {
               String fileName = status.getPath().getName();
-              if(fileName.endsWith(FSStorageAgent.TMP_FILE)) {
+              if (fileName.endsWith(FSStorageAgent.TMP_FILE)) {
                 continue;
               }
               long windowId = Long.parseLong(fileName, 16);
@@ -165,8 +173,7 @@ public interface IdempotentStorageManager extends StorageAgent, Component<Contex
             }
           }
         }
-      }
-      catch (IOException e) {
+      } catch (IOException e) {
         throw new RuntimeException(e);
       }
     }
@@ -229,13 +236,14 @@ public interface IdempotentStorageManager extends StorageAgent, Component<Contex
     {
       //deleting the replay state
       if (windowId <= largestRecoveryWindow && deletedOperators != null && !deletedOperators.isEmpty()) {
-        Iterator<Long> windowsIterator = replayState.keySet().iterator();
-        while (windowsIterator.hasNext()) {
-          long lwindow = windowsIterator.next();
+        Iterator<Map.Entry<Long, Collection<Integer>>> iterator = replayState.asMap().entrySet().iterator();
+        while (iterator.hasNext()) {
+          Map.Entry<Long, Collection<Integer>> windowEntry = iterator.next();
+          long lwindow = windowEntry.getKey();
           if (lwindow > windowId) {
             break;
           }
-          for (Integer loperator : replayState.removeAll(lwindow)) {
+          for (Integer loperator : windowEntry.getValue()) {
 
             if (deletedOperators.contains(loperator)) {
               storageAgent.delete(loperator, lwindow);
@@ -246,11 +254,11 @@ public interface IdempotentStorageManager extends StorageAgent, Component<Contex
                 deletedOperators.remove(loperator);
                 fs.delete(loperatorPath, true);
               }
-            }
-            else if (loperator == operatorId) {
+            } else if (loperator == operatorId) {
               storageAgent.delete(loperator, lwindow);
             }
           }
+          iterator.remove();
         }
       }
 
@@ -286,7 +294,7 @@ public interface IdempotentStorageManager extends StorageAgent, Component<Contex
 
       for (IdempotentStorageManager storageManager : newManagers) {
 
-        FSIdempotentStorageManager lmanager = (FSIdempotentStorageManager) storageManager;
+        FSIdempotentStorageManager lmanager = (FSIdempotentStorageManager)storageManager;
         lmanager.recoveryPath = this.recoveryPath;
         lmanager.storageAgent = this.storageAgent;
 
@@ -308,7 +316,7 @@ public interface IdempotentStorageManager extends StorageAgent, Component<Contex
         //If some operators were removed then there needs to be a manager which can clean there state when it is not needed.
         if (deletedOperatorsManager == null) {
           //None of the managers were handling deleted operators data.
-          deletedOperatorsManager = (FSIdempotentStorageManager) newManagers.iterator().next();
+          deletedOperatorsManager = (FSIdempotentStorageManager)newManagers.iterator().next();
           deletedOperatorsManager.deletedOperators = Sets.newHashSet();
         }
 
@@ -321,8 +329,7 @@ public interface IdempotentStorageManager extends StorageAgent, Component<Contex
     {
       try {
         fs.close();
-      }
-      catch (IOException e) {
+      } catch (IOException e) {
         throw new RuntimeException(e);
       }
     }

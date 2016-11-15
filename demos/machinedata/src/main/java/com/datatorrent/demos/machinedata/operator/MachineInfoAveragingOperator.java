@@ -1,31 +1,22 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.demos.machinedata.operator;
-
-import com.datatorrent.common.util.BaseOperator;
-import com.datatorrent.api.DefaultInputPort;
-import com.datatorrent.api.DefaultOutputPort;
-
-import com.datatorrent.demos.machinedata.data.MachineInfo;
-import com.datatorrent.demos.machinedata.data.MachineKey;
-import com.datatorrent.demos.machinedata.data.AverageData;
-import com.datatorrent.lib.util.KeyHashValPair;
-import com.datatorrent.lib.util.KeyValPair;
-
-import com.google.common.collect.Maps;
 
 import java.math.BigDecimal;
 import java.text.DateFormat;
@@ -34,6 +25,18 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+
+import com.google.common.collect.Maps;
+
+import com.datatorrent.api.DefaultInputPort;
+import com.datatorrent.api.DefaultOutputPort;
+import com.datatorrent.common.util.BaseOperator;
+
+import com.datatorrent.demos.machinedata.data.AverageData;
+import com.datatorrent.demos.machinedata.data.MachineInfo;
+import com.datatorrent.demos.machinedata.data.MachineKey;
+import com.datatorrent.lib.util.KeyHashValPair;
+import com.datatorrent.lib.util.KeyValPair;
 
 /**
  * This class calculates the average for various resources across different devices for a given key
@@ -50,16 +53,13 @@ public class MachineInfoAveragingOperator extends BaseOperator
   public static final String HDD = "hdd";
   public static final String DAY = "day";
 
-  private transient Map<MachineKey, AverageData> dataMap = new HashMap<MachineKey, AverageData>();
+  private final transient Map<MachineKey, AverageData> dataMap = new HashMap<>();
 
-  public final transient DefaultOutputPort<KeyValPair<MachineKey, Map<String, String>>> outputPort = new DefaultOutputPort<KeyValPair<MachineKey, Map<String, String>>>();
+  public final transient DefaultOutputPort<KeyValPair<MachineKey, Map<String, String>>> outputPort = new DefaultOutputPort<>();
 
-  public transient DefaultOutputPort<String> smtpAlert = new DefaultOutputPort<String>();
+  public transient DefaultOutputPort<String> smtpAlert = new DefaultOutputPort<>();
 
   private int threshold = 95;
-
-  private boolean genAlert;
-  //private transient DateFormat dateFormat = new SimpleDateFormat();
 
   /**
    * Buffer all the tuples as is till end window gets called
@@ -122,8 +122,8 @@ public class MachineInfoAveragingOperator extends BaseOperator
       average = averageResultMap.getRam() / count;
       averageResult.put(RAM, average + "");
       emitAlert(average, RAM, key);
-      averageResult.put(DAY, key.getDay().toString());
-      outputPort.emit(new KeyValPair<MachineKey, Map<String, String>>(key, averageResult));
+      averageResult.put(DAY, key.getDay());
+      outputPort.emit(new KeyValPair<>(key, averageResult));
     }
     dataMap.clear();
   }
@@ -184,7 +184,7 @@ public class MachineInfoAveragingOperator extends BaseOperator
   {
     StringBuilder sb = new StringBuilder();
     if (key instanceof MachineKey) {
-      MachineKey mkey = (MachineKey) key;
+      MachineKey mkey = (MachineKey)key;
       Integer customer = mkey.getCustomer();
       if (customer != null) {
         sb.append("customer: " + customer + "\n");

@@ -1,17 +1,20 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.io;
 
@@ -84,9 +87,8 @@ public class SocketInputOperatorTest
           reader.close();
           clientChannel.close();
         }
-      }
-      catch (Exception e) {
-        // LOG.debug("server ", e);
+      } catch (Exception e) {
+        //fixme
       }
     }
   }
@@ -115,16 +117,15 @@ public class SocketInputOperatorTest
       operator.endWindow();
       operator.deactivate();
       operator.teardown();
-      String outputString = (String) sink.collectedTuples.get(0);
+      String outputString = (String)sink.collectedTuples.get(0);
       Assert.assertEquals(strBuffer.substring(0, outputString.length()), sink.collectedTuples.get(0));
       int length = outputString.length();
-      outputString = (String) sink.collectedTuples.get(1);
+      outputString = (String)sink.collectedTuples.get(1);
       Assert.assertEquals(strBuffer.substring(length, length + outputString.length()), sink.collectedTuples.get(1));
       server.interrupt();
       server.join();
       Thread.sleep(1000);
-    }
-    catch (Exception e) {
+    } catch (Exception e) {
       LOG.debug("exception", e);
     }
   }
@@ -158,15 +159,14 @@ public class SocketInputOperatorTest
       int endIndex = 0;
       int start = 0;
       for (int i = 0; i < 10; i++) {
-        endIndex += ((String) sink.collectedTuples.get(i)).length();
+        endIndex += ((String)sink.collectedTuples.get(i)).length();
         Assert.assertEquals(strBuffer.substring(start, endIndex), sink.collectedTuples.get(i));
         start = endIndex;
       }
       server.interrupt();
       server.join();
       Thread.sleep(1000);
-    }
-    catch (Exception e) {
+    } catch (Exception e) {
       LOG.debug("exception", e);
     }
   }

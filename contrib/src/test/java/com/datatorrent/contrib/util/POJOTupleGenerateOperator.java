@@ -1,19 +1,20 @@
 /**
- * 
- * Copyright (c) 2015 DataTorrent, Inc. ALL Rights Reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.contrib.util;
 
@@ -31,7 +32,7 @@ public class POJOTupleGenerateOperator<T> implements InputOperator, ActivationLi
 {
   protected final int DEFAULT_TUPLE_NUM = 10000;
   public final transient DefaultOutputPort<T> outputPort = new DefaultOutputPort<T>();
-  
+
   private int tupleNum = DEFAULT_TUPLE_NUM;
   private int batchNum = 5;
   private TupleGenerator<T> tupleGenerator = null;
@@ -41,17 +42,17 @@ public class POJOTupleGenerateOperator<T> implements InputOperator, ActivationLi
   public POJOTupleGenerateOperator()
   {
   }
-  
+
   public POJOTupleGenerateOperator( Class<T> tupleClass )
   {
     this.tupleClass = tupleClass;
   }
-  
+
   public void setTupleType( Class<T> tupleClass )
   {
     this.tupleClass = tupleClass;
   }
-  
+
   @Override
   public void beginWindow(long windowId)
   {
@@ -95,39 +96,39 @@ public class POJOTupleGenerateOperator<T> implements InputOperator, ActivationLi
       catch( Exception e ){}
       return;
     }
-      
-    
+
+
     for( int i=0; i<batchNum; ++i )
     {
       int count = emitedTuples.get();
       if( count >= theTupleNum )
         return;
-      
+
       if( emitedTuples.compareAndSet(count, count+1) )
       {
-        T tuple = getNextTuple();        
+        T tuple = getNextTuple();
         outputPort.emit ( tuple );
         tupleEmitted( tuple );
-        
+
         if( count+1 == theTupleNum )
         {
           tupleEmitDone();
           return;
         }
       }
-      
+
     }
   }
-  
-  
+
+
   protected void tupleEmitted( T tuple ){}
   protected void tupleEmitDone(){}
-  
+
   public int getEmitedTupleCount()
   {
     return emitedTuples.get();
   }
-  
+
   public int getTupleNum()
   {
     return tupleNum;
@@ -136,7 +137,7 @@ public class POJOTupleGenerateOperator<T> implements InputOperator, ActivationLi
   {
     this.tupleNum = tupleNum;
   }
-  
+
   protected T getNextTuple()
   {
     if( tupleGenerator == null )

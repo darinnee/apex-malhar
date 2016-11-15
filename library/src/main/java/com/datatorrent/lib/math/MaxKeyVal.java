@@ -1,29 +1,31 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.math;
 
 import java.util.HashMap;
 import java.util.Map;
 
-import com.datatorrent.lib.util.BaseNumberKeyValueOperator;
-import com.datatorrent.lib.util.KeyValPair;
-
 import com.datatorrent.api.DefaultInputPort;
 import com.datatorrent.api.DefaultOutputPort;
 import com.datatorrent.api.StreamCodec;
+import com.datatorrent.lib.util.BaseNumberKeyValueOperator;
+import com.datatorrent.lib.util.KeyValPair;
 
 /**
  *
@@ -65,8 +67,7 @@ public class MaxKeyVal<K, V extends Number> extends BaseNumberKeyValueOperator<K
       if (val == null) {
         val = tval;
         highs.put(cloneKey(key), val);
-      }
-      else if (val.doubleValue() < tval.doubleValue()) {
+      } else if (val.doubleValue() < tval.doubleValue()) {
         highs.put(key, tval);
       }
     }
@@ -94,7 +95,7 @@ public class MaxKeyVal<K, V extends Number> extends BaseNumberKeyValueOperator<K
    * Clears internal data. Node only works in windowed mode.
    */
   @SuppressWarnings({ "rawtypes", "unchecked" })
-	@Override
+  @Override
   public void endWindow()
   {
     if (!highs.isEmpty()) {

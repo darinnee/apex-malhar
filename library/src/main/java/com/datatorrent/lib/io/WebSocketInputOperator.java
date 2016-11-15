@@ -1,38 +1,42 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.io;
-
-import com.datatorrent.api.Context.OperatorContext;
-import com.ning.http.client.AsyncHttpClient;
-import com.ning.http.client.AsyncHttpClientConfigBean;
-import com.ning.http.client.websocket.WebSocket;
-import com.ning.http.client.websocket.WebSocketTextListener;
-import com.ning.http.client.websocket.WebSocketUpgradeHandler;
 
 import java.io.IOException;
 import java.net.URI;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
-import javax.validation.constraints.NotNull;
-import org.apache.commons.lang3.ClassUtils;
+
 import org.codehaus.jackson.JsonFactory;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.apex.shaded.ning19.com.ning.http.client.AsyncHttpClient;
+import org.apache.apex.shaded.ning19.com.ning.http.client.AsyncHttpClientConfigBean;
+import org.apache.apex.shaded.ning19.com.ning.http.client.ws.WebSocket;
+import org.apache.apex.shaded.ning19.com.ning.http.client.ws.WebSocketTextListener;
+import org.apache.apex.shaded.ning19.com.ning.http.client.ws.WebSocketUpgradeHandler;
+import org.apache.commons.lang3.ClassUtils;
+
+import com.datatorrent.api.Context.OperatorContext;
 
 /**
  * Reads via WebSocket from given URL as input stream.&nbsp;
@@ -55,11 +59,11 @@ public class WebSocketInputOperator<T> extends SimpleSinglePortInputOperator<T> 
   //Do not make this @NotNull since null is a valid value for some child classes
   private URI uri;
   private transient AsyncHttpClient client;
-  private transient final JsonFactory jsonFactory = new JsonFactory();
-  protected transient final ObjectMapper mapper = new ObjectMapper(jsonFactory);
+  private final transient JsonFactory jsonFactory = new JsonFactory();
+  protected final transient ObjectMapper mapper = new ObjectMapper(jsonFactory);
   protected transient WebSocket connection;
   private transient boolean connectionClosed = false;
-  private transient boolean shutdown = false;
+  private transient volatile boolean shutdown = false;
   private int ioThreadMultiplier = 1;
   protected boolean skipNull = false;
 
@@ -116,8 +120,7 @@ public class WebSocketInputOperator<T> extends SimpleSinglePortInputOperator<T> 
       shutdown = false;
       monThread = new MonitorThread();
       monThread.start();
-    }
-    catch (Exception ex) {
+    } catch (Exception ex) {
       throw new RuntimeException(ex);
     }
   }
@@ -130,10 +133,18 @@ public class WebSocketInputOperator<T> extends SimpleSinglePortInputOperator<T> 
       if (monThread != null) {
         monThread.join();
       }
-    }
-    catch (Exception ex) {
+    } catch (Exception ex) {
       LOG.error("Error joining monitor", ex);
     }
+
+    if (connection != null) {
+      connection.close();
+    }
+
+    if (client != null) {
+      client.close();
+    }
+
     super.teardown();
   }
 
@@ -154,10 +165,11 @@ public class WebSocketInputOperator<T> extends SimpleSinglePortInputOperator<T> 
         try {
           sleep(1000);
           if (connectionClosed && !WebSocketInputOperator.this.shutdown) {
+            connection.close();
             WebSocketInputOperator.this.activate(null);
           }
-        }
-        catch (Exception ex) {
+        } catch (Exception ex) {
+          //swallowing exception
         }
       }
     }
@@ -184,6 +196,11 @@ public class WebSocketInputOperator<T> extends SimpleSinglePortInputOperator<T> 
         }
 
       }));
+
+      if (client != null) {
+        client.closeAsynchronously();
+      }
+
       client = new AsyncHttpClient(config);
       connection = client.prepareGet(uri.toString()).execute(new WebSocketUpgradeHandler.Builder().addWebSocketListener(new WebSocketTextListener()
       {
@@ -193,19 +210,12 @@ public class WebSocketInputOperator<T> extends SimpleSinglePortInputOperator<T> 
           LOG.debug("Got: " + string);
           try {
             T o = convertMessage(string);
-            if(!(skipNull && o == null)) {
+            if (!(skipNull && o == null)) {
               outputPort.emit(o);
             }
-          }
-          catch (IOException ex) {
+          } catch (IOException ex) {
             LOG.error("Got exception: ", ex);
           }
-        }
-
-        @Override
-        public void onFragment(String string, boolean bln)
-        {
-          LOG.debug("onFragment");
         }
 
         @Override
@@ -228,8 +238,7 @@ public class WebSocketInputOperator<T> extends SimpleSinglePortInputOperator<T> 
         }
 
       }).build()).get(5, TimeUnit.SECONDS);
-    }
-    catch (Exception ex) {
+    } catch (Exception ex) {
       LOG.error("Error reading from " + uri, ex);
       if (client != null) {
         client.close();

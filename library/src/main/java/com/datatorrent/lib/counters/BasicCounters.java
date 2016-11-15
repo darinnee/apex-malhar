@@ -1,17 +1,20 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.counters;
 
@@ -22,9 +25,6 @@ import java.util.Map;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
-
 import org.codehaus.jackson.JsonGenerator;
 import org.codehaus.jackson.map.JsonSerializer;
 import org.codehaus.jackson.map.SerializerProvider;
@@ -32,8 +32,10 @@ import org.codehaus.jackson.map.annotate.JsonSerialize;
 
 import org.apache.commons.lang.mutable.Mutable;
 
-import com.datatorrent.api.Context;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
 
+import com.datatorrent.api.Context;
 import com.datatorrent.common.util.NumberAggregate;
 
 /**
@@ -139,7 +141,7 @@ public class BasicCounters<T extends Number & Mutable> implements Serializable
       for (Object counter : objects) {
         if (counter instanceof BasicCounters) {
           @SuppressWarnings("unchecked")
-          BasicCounters<T> physical = (BasicCounters<T>) counter;
+          BasicCounters<T> physical = (BasicCounters<T>)counter;
           ImmutableMap<Enum<?>, T> copy = physical.getCopy();
 
           for (Map.Entry<Enum<?>, T> entry : copy.entrySet()) {
@@ -175,7 +177,7 @@ public class BasicCounters<T extends Number & Mutable> implements Serializable
       for (Object counter : objects) {
         if (counter instanceof BasicCounters) {
           @SuppressWarnings("unchecked")
-          BasicCounters<T> physical = (BasicCounters<T>) counter;
+          BasicCounters<T> physical = (BasicCounters<T>)counter;
           ImmutableMap<Enum<?>, T> copy = physical.getCopy();
 
           for (Map.Entry<Enum<?>, T> entry : copy.entrySet()) {

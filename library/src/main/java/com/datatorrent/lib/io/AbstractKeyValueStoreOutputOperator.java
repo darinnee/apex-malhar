@@ -1,17 +1,20 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.io;
 
@@ -21,11 +24,11 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.datatorrent.common.util.BaseOperator;
 import com.datatorrent.api.Context.DAGContext;
 import com.datatorrent.api.Context.OperatorContext;
 import com.datatorrent.api.DefaultInputPort;
 import com.datatorrent.api.annotation.InputPortFieldAnnotation;
+import com.datatorrent.common.util.BaseOperator;
 import com.datatorrent.lib.util.KeyValPair;
 
 /**
@@ -39,6 +42,7 @@ import com.datatorrent.lib.util.KeyValPair;
  *
  * @since 0.3.2
  */
+@org.apache.hadoop.classification.InterfaceStability.Evolving
 public abstract class AbstractKeyValueStoreOutputOperator<K, V> extends BaseOperator
 {
   private static final Logger LOG = LoggerFactory.getLogger(AbstractKeyValueStoreOutputOperator.class);
@@ -58,7 +62,7 @@ public abstract class AbstractKeyValueStoreOutputOperator<K, V> extends BaseOper
    * This input port receives tuples which are maps.
    * Each map may have many key value pairs.
    */
-  @InputPortFieldAnnotation(optional=true)
+  @InputPortFieldAnnotation(optional = true)
   public final transient DefaultInputPort<Map<K, V>> input = new DefaultInputPort<Map<K, V>>()
   {
     @Override
@@ -74,7 +78,7 @@ public abstract class AbstractKeyValueStoreOutputOperator<K, V> extends BaseOper
   /**
    * This input port receives tuples which are individual key value pairs.
    */
-  @InputPortFieldAnnotation(optional=true)
+  @InputPortFieldAnnotation(optional = true)
   public final transient DefaultInputPort<KeyValPair<K, V>> inputInd = new DefaultInputPort<KeyValPair<K, V>>()
   {
     @Override
@@ -137,8 +141,7 @@ public abstract class AbstractKeyValueStoreOutputOperator<K, V> extends BaseOper
         put(getEndWindowKey(), String.valueOf(currentWindowId));
         commitTransaction();
         committedWindowId = currentWindowId;
-      }
-      else {
+      } else {
         LOG.info("Discarding data for window id {} because committed window is {}", currentWindowId, committedWindowId);
       }
     } catch (RuntimeException se) {
@@ -159,7 +162,8 @@ public abstract class AbstractKeyValueStoreOutputOperator<K, V> extends BaseOper
     return "_ew:" + appId + ":" + operatorId;
   }
 
-  private void logException(String message, Exception exception) {
+  private void logException(String message, Exception exception)
+  {
     if (continueOnError != 0) {
       LOG.warn(message, exception);
     } else {

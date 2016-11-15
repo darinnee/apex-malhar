@@ -1,29 +1,33 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.algo;
 
-import java.util.HashMap;
+import java.util.Arrays;
+import java.util.HashSet;
 
 import javax.validation.constraints.NotNull;
 
-import com.datatorrent.common.util.BaseOperator;
 import com.datatorrent.api.DefaultInputPort;
 import com.datatorrent.api.DefaultOutputPort;
 import com.datatorrent.api.annotation.OperatorAnnotation;
 import com.datatorrent.api.annotation.Stateless;
+import com.datatorrent.common.util.BaseOperator;
 
 /**
  * This operator filters the incoming stream of values by the specified set of filter values.
@@ -69,7 +73,7 @@ public class FilterValues<T> extends BaseOperator
     @Override
     public void process(T tuple)
     {
-      boolean contains = values.containsKey(tuple);
+      boolean contains = values.contains(tuple);
       if ((contains && !inverse) || (!contains && inverse)) {
         filter.emit(cloneValue(tuple));
       }
@@ -82,7 +86,7 @@ public class FilterValues<T> extends BaseOperator
   public final transient DefaultOutputPort<T> filter = new DefaultOutputPort<T>();
 
   @NotNull()
-  HashMap<T, Object> values = new HashMap<T, Object>();
+  HashSet<T> values = new HashSet<T>();
   boolean inverse = false;
 
   /**
@@ -111,7 +115,7 @@ public class FilterValues<T> extends BaseOperator
   public void setValue(T val)
   {
     if (val != null) {
-      values.put(val, null);
+      values.add(val);
     }
   }
 
@@ -123,9 +127,7 @@ public class FilterValues<T> extends BaseOperator
   public void setValues(T[] list)
   {
     if (list != null) {
-      for (T e: list) {
-        values.put(e, null);
-      }
+      values.addAll(Arrays.asList(list));
     }
   }
 
@@ -133,7 +135,7 @@ public class FilterValues<T> extends BaseOperator
    * Gets the values to be filtered.
    * @return The values to be filtered.
    */
-  public HashMap<T, Object> getValues()
+  public HashSet<T> getValues()
   {
     return values;
   }
@@ -143,7 +145,7 @@ public class FilterValues<T> extends BaseOperator
    * values are set to be null.
    * @param values The values to be filtered.
    */
-  public void setValues(HashMap<T, Object> values)
+  public void setValues(HashSet<T> values)
   {
     this.values = values;
   }

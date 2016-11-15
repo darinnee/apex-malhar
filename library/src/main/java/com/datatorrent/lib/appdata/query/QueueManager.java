@@ -1,17 +1,20 @@
-/*
- * Copyright (c) 2015 DataTorrent, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.appdata.query;
 
@@ -30,6 +33,7 @@ import com.datatorrent.api.Context.OperatorContext;
  */
 public interface QueueManager<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT> extends Component<OperatorContext>
 {
+
   /**
    * This method enqueues an AppData query.
    * @param query The query to queue.
@@ -39,6 +43,7 @@ public interface QueueManager<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT> extends Com
    * @return True if the query was successfully queued. False otherwise.
    */
   public boolean enqueue(QUERY_TYPE query, META_QUERY metaQuery, QUEUE_CONTEXT queueContext);
+
   /**
    * <p>
    * This method dequeues a query, and returns a {@link QueryBundle} which includes the query,
@@ -50,12 +55,14 @@ public interface QueueManager<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT> extends Com
    * @return The query bundle for a query.
    */
   public QueryBundle<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT> dequeue();
+
   /**
    * This should be called in beginWindow of an operator so that the {@link QueueManager} can correctly update
    * its internal state for managing queries.
    * @param windowId The windowId of the current window.
    */
   public void beginWindow(long windowId);
+
   /**
    * This should be called in endWindow of an operator so that the {@link QueueManager} can correctly update its
    * internal state for managing queries.
@@ -77,5 +84,6 @@ public interface QueueManager<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT> extends Com
   public int getNumLeft();
 
   public void haltEnqueue();
+
   public void resumeEnqueue();
 }

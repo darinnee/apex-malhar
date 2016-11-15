@@ -1,32 +1,36 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.demos.frauddetect;
-
-import com.datatorrent.common.util.BaseOperator;
-import com.datatorrent.api.DefaultInputPort;
-import com.datatorrent.api.DefaultOutputPort;
-import com.datatorrent.lib.util.HighLow;
-import com.datatorrent.lib.util.KeyValPair;
-import com.datatorrent.demos.frauddetect.util.JsonUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.datatorrent.api.DefaultInputPort;
+import com.datatorrent.api.DefaultOutputPort;
+import com.datatorrent.common.util.BaseOperator;
+import com.datatorrent.demos.frauddetect.util.JsonUtils;
+import com.datatorrent.lib.util.HighLow;
+import com.datatorrent.lib.util.KeyValPair;
 
 /**
  * Operator to aggregate the min, max, sma, std-dev and variance for the given key.
@@ -36,10 +40,10 @@ import java.util.Map;
 public class TransactionStatsAggregator extends BaseOperator
 {
   public Map<MerchantKey, TransactionStatsData> aggrgateMap =
-          new HashMap<MerchantKey, TransactionStatsData>();
+      new HashMap<MerchantKey, TransactionStatsData>();
   public final transient DefaultOutputPort<String> txDataOutputPort = new DefaultOutputPort<String>();
   public final transient DefaultInputPort<KeyValPair<MerchantKey, HighLow<Long>>> rangeInputPort =
-          new DefaultInputPort<KeyValPair<MerchantKey, HighLow<Long>>>()
+      new DefaultInputPort<KeyValPair<MerchantKey, HighLow<Long>>>()
   {
     @Override
     public void process(KeyValPair<MerchantKey, HighLow<Long>> tuple)
@@ -52,7 +56,7 @@ public class TransactionStatsAggregator extends BaseOperator
 
   };
   public final transient DefaultInputPort<KeyValPair<MerchantKey, Long>> smaInputPort =
-          new DefaultInputPort<KeyValPair<MerchantKey, Long>>()
+      new DefaultInputPort<KeyValPair<MerchantKey, Long>>()
   {
     @Override
     public void process(KeyValPair<MerchantKey, Long> tuple)
@@ -84,8 +88,7 @@ public class TransactionStatsAggregator extends BaseOperator
     for (Map.Entry<MerchantKey, TransactionStatsData> entry : aggrgateMap.entrySet()) {
       try {
         txDataOutputPort.emit(JsonUtils.toJson(entry.getValue()));
-      }
-      catch (IOException e) {
+      } catch (IOException e) {
         logger.warn("Exception while converting object to JSON", e);
       }
     }

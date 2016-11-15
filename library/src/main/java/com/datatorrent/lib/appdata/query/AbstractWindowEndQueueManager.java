@@ -1,33 +1,35 @@
-/*
- * Copyright (c) 2015 DataTorrent, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.appdata.query;
 
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.datatorrent.lib.appdata.QueueUtils.ConditionBarrier;
-import com.datatorrent.lib.appdata.query.QueueList.QueueListNode;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 
 import com.datatorrent.api.Context.OperatorContext;
+import com.datatorrent.lib.appdata.QueueUtils.ConditionBarrier;
+import com.datatorrent.lib.appdata.query.QueueList.QueueListNode;
 
 /**
  * This is an abstract implementation of a QueueManager which works in the following way.
@@ -49,8 +51,7 @@ public abstract class AbstractWindowEndQueueManager<QUERY_TYPE, META_QUERY, QUEU
   /**
    * The {@link QueueList} which is backing this {@link QueueManager}.
    */
-  protected QueueList<QueryBundle<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT>> queryQueue =
-  new QueueList<QueryBundle<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT>>();
+  protected QueueList<QueryBundle<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT>> queryQueue = new QueueList<>();
   /**
    * A pointer to the current node in the {@link QueueList}.
    */
@@ -88,17 +89,18 @@ public abstract class AbstractWindowEndQueueManager<QUERY_TYPE, META_QUERY, QUEU
    */
   private boolean enqueueHelper(QUERY_TYPE query, META_QUERY metaQuery, QUEUE_CONTEXT context)
   {
-    QueryBundle<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT> queryQueueable =
-    new QueryBundle<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT>(query, metaQuery, context);
+    QueryBundle<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT> queryQueueable = new QueryBundle<>(query, metaQuery, context);
 
-    QueueListNode<QueryBundle<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT>> node = new QueueListNode<QueryBundle<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT>>(queryQueueable);
+    QueueListNode<QueryBundle<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT>> node = new QueueListNode<>(queryQueueable);
 
-    if(addingFilter(queryQueueable)) {
-      queryQueue.enqueue(node);
-      numLeft.getAndIncrement();
-      semaphore.release();
+    synchronized (numLeft) {
+      if (addingFilter(queryQueueable)) {
+        queryQueue.enqueue(node);
+        numLeft.getAndIncrement();
+        semaphore.release();
 
-      addedNode(node);
+        addedNode(node);
+      }
     }
 
     return true;
@@ -126,62 +128,57 @@ public abstract class AbstractWindowEndQueueManager<QUERY_TYPE, META_QUERY, QUEU
 
     boolean first = true;
 
-    if(block) {
+    if (block) {
       acquire();
     }
 
-    if(currentNode == null) {
+    if (currentNode == null) {
       currentNode = queryQueue.getHead();
       readCurrent = false;
 
-      if(currentNode == null) {
+      if (currentNode == null) {
         return null;
       }
-    }
-    else {
-      if(readCurrent) {
+    } else {
+      if (readCurrent) {
         QueueListNode<QueryBundle<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT>> tempNode = currentNode.getNext();
 
-        if(tempNode != null) {
+        if (tempNode != null) {
           currentNode = tempNode;
           readCurrent = false;
-        }
-        else {
+        } else {
           return null;
         }
       }
     }
 
-    while(true)
-    {
-      if(block && !first) {
+    while (true) {
+      if (block && !first) {
         acquire();
 
         //TODO dedup this code
-        if(currentNode == null) {
+        if (currentNode == null) {
           currentNode = queryQueue.getHead();
           readCurrent = false;
 
-          if(currentNode == null) {
+          if (currentNode == null) {
             return null;
           }
-        }
-        else {
-          if(readCurrent) {
+        } else {
+          if (readCurrent) {
             QueueListNode<QueryBundle<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT>> tempNode = currentNode.getNext();
 
-            if(tempNode != null) {
+            if (tempNode != null) {
               currentNode = tempNode;
               readCurrent = false;
-            }
-            else {
+            } else {
               return null;
             }
           }
         }
       }
 
-      synchronized(numLeft) {
+      synchronized (numLeft) {
         numLeft.getAndDecrement();
         QueryBundle<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT> queryQueueable = currentNode.getPayload();
 
@@ -189,36 +186,31 @@ public abstract class AbstractWindowEndQueueManager<QUERY_TYPE, META_QUERY, QUEU
 
         QueueListNode<QueryBundle<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT>> nextNode = currentNode.getNext();
 
-        if(removeBundle(queryQueueable)) {
+        if (removeBundle(queryQueueable)) {
           queryQueue.removeNode(currentNode);
           removedNode(currentNode);
 
-          if(block) {
-            if(nextNode == null) {
+          if (block) {
+            if (nextNode == null) {
               readCurrent = true;
-            }
-            else {
+            } else {
               currentNode = nextNode;
               readCurrent = false;
             }
-          }
-          else {
-            if(nextNode == null) {
+          } else {
+            if (nextNode == null) {
               readCurrent = true;
               break;
-            }
-            else {
+            } else {
               currentNode = nextNode;
             }
           }
-        }
-        else {
+        } else {
           qq = currentNode.getPayload();
 
-          if(nextNode == null) {
+          if (nextNode == null) {
             readCurrent = true;
-          }
-          else {
+          } else {
             currentNode = nextNode;
             readCurrent = false;
           }
@@ -229,11 +221,10 @@ public abstract class AbstractWindowEndQueueManager<QUERY_TYPE, META_QUERY, QUEU
     }
 
     //Handle the case where non blocking dequeue is happening, semaphore needs to be synched up.
-    if(semaphore.availablePermits() > numLeft.get()) {
+    if (semaphore.availablePermits() > numLeft.get()) {
       try {
         semaphore.acquire(semaphore.availablePermits() - numLeft.get());
-      }
-      catch(InterruptedException ex) {
+      } catch (InterruptedException ex) {
         throw new RuntimeException(ex);
       }
     }
@@ -241,12 +232,17 @@ public abstract class AbstractWindowEndQueueManager<QUERY_TYPE, META_QUERY, QUEU
     return qq;
   }
 
+  //Dirty hack TODO fix QueueManager interface
+  public boolean isEmptyAndBlocked()
+  {
+    return numLeft.get() == 0 && semaphore.availablePermits() == 0 && semaphore.hasQueuedThreads();
+  }
+
   private void acquire()
   {
     try {
       semaphore.acquire();
-    }
-    catch(InterruptedException ex) {
+    } catch (InterruptedException ex) {
       throw new RuntimeException(ex);
     }
   }
@@ -285,7 +281,7 @@ public abstract class AbstractWindowEndQueueManager<QUERY_TYPE, META_QUERY, QUEU
   @Override
   public void beginWindow(long windowId)
   {
-    synchronized(numLeft) {
+    synchronized (numLeft) {
       currentNode = queryQueue.getHead();
       readCurrent = false;
       numLeft.set(queryQueue.getSize());

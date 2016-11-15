@@ -1,17 +1,20 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.contrib.redis;
 
@@ -22,18 +25,20 @@ import java.util.List;
 
 import javax.validation.constraints.NotNull;
 
+import org.apache.apex.malhar.lib.wal.FSWindowDataManager;
+import org.apache.apex.malhar.lib.wal.WindowDataManager;
+
 import redis.clients.jedis.ScanParams;
 import redis.clients.jedis.ScanResult;
 
-import com.datatorrent.api.Operator.CheckpointListener;
+import com.datatorrent.api.Operator.CheckpointNotificationListener;
 import com.datatorrent.api.Context.OperatorContext;
 import com.datatorrent.netlet.util.DTThrowable;
 import com.datatorrent.lib.db.AbstractKeyValueStoreInputOperator;
-import com.datatorrent.lib.io.IdempotentStorageManager;
 
 /**
  * This is the base implementation of a Redis input operator.
- * 
+ *
  * @displayName Abstract Redis Input
  * @category Input
  * @tags redis, key value
@@ -42,7 +47,7 @@ import com.datatorrent.lib.io.IdempotentStorageManager;
  *          The tuple type.
  * @since 0.9.3
  */
-public abstract class AbstractRedisInputOperator<T> extends AbstractKeyValueStoreInputOperator<T, RedisStore> implements CheckpointListener
+public abstract class AbstractRedisInputOperator<T> extends AbstractKeyValueStoreInputOperator<T, RedisStore> implements CheckpointNotificationListener
 {
   protected transient List<String> keys = new ArrayList<String>();
   protected transient Integer scanOffset;
@@ -54,7 +59,7 @@ public abstract class AbstractRedisInputOperator<T> extends AbstractKeyValueStor
   private transient boolean skipOffsetRecovery = true;
 
   @NotNull
-  private IdempotentStorageManager idempotentStorageManager;
+  private WindowDataManager windowDataManager;
 
   private transient OperatorContext context;
   private transient long currentWindowId;
@@ -80,7 +85,7 @@ public abstract class AbstractRedisInputOperator<T> extends AbstractKeyValueStor
     recoveryState = new RecoveryState();
     recoveryState.scanOffsetAtBeginWindow = 0;
     recoveryState.numberOfScanCallsInWindow = 0;
-    setIdempotentStorageManager(new IdempotentStorageManager.NoopIdempotentStorageManager());
+    setWindowDataManager(new FSWindowDataManager());
   }
 
   @Override
@@ -89,7 +94,7 @@ public abstract class AbstractRedisInputOperator<T> extends AbstractKeyValueStor
     currentWindowId = windowId;
     scanCallsInCurrentWindow = 0;
     replay = false;
-    if (currentWindowId <= getIdempotentStorageManager().getLargestRecoveryWindow()) {
+    if (currentWindowId <= getWindowDataManager().getLargestCompletedWindow()) {
       replay(windowId);
     }
   }
@@ -102,11 +107,11 @@ public abstract class AbstractRedisInputOperator<T> extends AbstractKeyValueStor
       if (!skipOffsetRecovery) {
         // Begin offset for this window is recovery offset stored for the last
         // window
-        RecoveryState recoveryStateForLastWindow = (RecoveryState) getIdempotentStorageManager().load(context.getId(), windowId - 1);
+        RecoveryState recoveryStateForLastWindow = (RecoveryState) getWindowDataManager().retrieve(windowId - 1);
         recoveryState.scanOffsetAtBeginWindow = recoveryStateForLastWindow.scanOffsetAtBeginWindow;
       }
       skipOffsetRecovery = false;
-      RecoveryState recoveryStateForCurrentWindow = (RecoveryState) getIdempotentStorageManager().load(context.getId(), windowId);
+      RecoveryState recoveryStateForCurrentWindow = (RecoveryState) getWindowDataManager().retrieve(windowId);
       recoveryState.numberOfScanCallsInWindow = recoveryStateForCurrentWindow.numberOfScanCallsInWindow;
       if (recoveryState.scanOffsetAtBeginWindow != null) {
         scanOffset = recoveryState.scanOffsetAtBeginWindow;
@@ -150,15 +155,15 @@ public abstract class AbstractRedisInputOperator<T> extends AbstractKeyValueStor
   {
     super.setup(context);
     sleepTimeMillis = context.getValue(context.SPIN_MILLIS);
-    getIdempotentStorageManager().setup(context);
+    getWindowDataManager().setup(context);
     this.context = context;
     scanOffset = 0;
     scanComplete = false;
     scanParameters = new ScanParams();
     scanParameters.count(scanCount);
-    
+
     // For the 1st window after checkpoint, windowID - 1 would not have recovery
-    // offset stored in idempotentStorageManager
+    // offset stored in windowDataManager
     // But recoveryOffset is non-transient, so will be recovered with
     // checkPointing
     // Offset recovery from idempotency storage can be skipped in this case
@@ -178,9 +183,9 @@ public abstract class AbstractRedisInputOperator<T> extends AbstractKeyValueStor
     recoveryState.scanOffsetAtBeginWindow = scanOffset;
     recoveryState.numberOfScanCallsInWindow = scanCallsInCurrentWindow;
 
-    if (currentWindowId > getIdempotentStorageManager().getLargestRecoveryWindow()) {
+    if (currentWindowId > getWindowDataManager().getLargestCompletedWindow()) {
       try {
-        getIdempotentStorageManager().save(recoveryState, context.getId(), currentWindowId);
+        getWindowDataManager().save(recoveryState, currentWindowId);
       } catch (IOException e) {
         DTThrowable.rethrow(e);
       }
@@ -191,7 +196,7 @@ public abstract class AbstractRedisInputOperator<T> extends AbstractKeyValueStor
   public void teardown()
   {
     super.teardown();
-    getIdempotentStorageManager().teardown();
+    getWindowDataManager().teardown();
   }
 
   /*
@@ -220,6 +225,11 @@ public abstract class AbstractRedisInputOperator<T> extends AbstractKeyValueStor
   abstract public void processTuples();
 
   @Override
+  public void beforeCheckpoint(long windowId)
+  {
+  }
+
+  @Override
   public void checkpointed(long windowId)
   {
   }
@@ -228,7 +238,7 @@ public abstract class AbstractRedisInputOperator<T> extends AbstractKeyValueStor
   public void committed(long windowId)
   {
     try {
-      getIdempotentStorageManager().deleteUpTo(context.getId(), windowId);
+      getWindowDataManager().committed(windowId);
     } catch (IOException e) {
       throw new RuntimeException("committing", e);
     }
@@ -237,16 +247,16 @@ public abstract class AbstractRedisInputOperator<T> extends AbstractKeyValueStor
   /*
    * get Idempotent Storage manager instance
    */
-  public IdempotentStorageManager getIdempotentStorageManager()
+  public WindowDataManager getWindowDataManager()
   {
-    return idempotentStorageManager;
+    return windowDataManager;
   }
 
   /*
    * set Idempotent storage manager instance
    */
-  public void setIdempotentStorageManager(IdempotentStorageManager idempotentStorageManager)
+  public void setWindowDataManager(WindowDataManager windowDataManager)
   {
-    this.idempotentStorageManager = idempotentStorageManager;
+    this.windowDataManager = windowDataManager;
   }
 }

@@ -1,27 +1,31 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.demos.frauddetect;
 
 import java.util.ArrayList;
 
+import com.datatorrent.api.DefaultOutputPort;
+import com.datatorrent.api.annotation.OutputPortFieldAnnotation;
+
 import com.datatorrent.lib.multiwindow.AbstractSlidingWindowKeyVal;
 import com.datatorrent.lib.util.KeyValPair;
 
-import com.datatorrent.api.DefaultOutputPort;
-import com.datatorrent.api.annotation.OutputPortFieldAnnotation;
 
 /**
  * Sliding window sum operator
@@ -31,27 +35,27 @@ import com.datatorrent.api.annotation.OutputPortFieldAnnotation;
 public class SlidingWindowSumKeyVal<K, V extends Number> extends AbstractSlidingWindowKeyVal<K, V, SlidingWindowSumObject>
 {
 
-  	/**
-	 * Output port to emit simple moving average (SMA) of last N window as Double.
-	 */
-	@OutputPortFieldAnnotation(optional = true)
-	public final transient DefaultOutputPort<KeyValPair<K, Double>> doubleSum = new DefaultOutputPort<KeyValPair<K, Double>>();
-	/**
-	 * Output port to emit simple moving average (SMA) of last N window as Float.
-	 */
-	@OutputPortFieldAnnotation(optional = true)
-	public final transient DefaultOutputPort<KeyValPair<K, Float>> floatSum = new DefaultOutputPort<KeyValPair<K, Float>>();
-	/**
-	 * Output port to emit simple moving average (SMA) of last N window as Long.
-	 */
-	@OutputPortFieldAnnotation(optional = true)
-	public final transient DefaultOutputPort<KeyValPair<K, Long>> longSum = new DefaultOutputPort<KeyValPair<K, Long>>();
-	/**
-	 * Output port to emit simple moving average (SMA) of last N window as
-	 * Integer.
-	 */
-	@OutputPortFieldAnnotation(optional = true)
-	public final transient DefaultOutputPort<KeyValPair<K, Integer>> integerSum = new DefaultOutputPort<KeyValPair<K, Integer>>();
+  /**
+   * Output port to emit simple moving average (SMA) of last N window as Double.
+   */
+  @OutputPortFieldAnnotation(optional = true)
+  public final transient DefaultOutputPort<KeyValPair<K, Double>> doubleSum = new DefaultOutputPort<KeyValPair<K, Double>>();
+  /**
+   * Output port to emit simple moving average (SMA) of last N window as Float.
+   */
+  @OutputPortFieldAnnotation(optional = true)
+  public final transient DefaultOutputPort<KeyValPair<K, Float>> floatSum = new DefaultOutputPort<KeyValPair<K, Float>>();
+  /**
+   * Output port to emit simple moving average (SMA) of last N window as Long.
+   */
+  @OutputPortFieldAnnotation(optional = true)
+  public final transient DefaultOutputPort<KeyValPair<K, Long>> longSum = new DefaultOutputPort<KeyValPair<K, Long>>();
+  /**
+   * Output port to emit simple moving average (SMA) of last N window as
+   * Integer.
+   */
+  @OutputPortFieldAnnotation(optional = true)
+  public final transient DefaultOutputPort<KeyValPair<K, Integer>> integerSum = new DefaultOutputPort<KeyValPair<K, Integer>>();
 
 
   @Override
@@ -66,7 +70,6 @@ public class SlidingWindowSumKeyVal<K, V extends Number> extends AbstractSliding
       }
       buffer.put(key, stateList);
     }
-
     SlidingWindowSumObject state = stateList.get(currentstate);
     state.add(tuple.getValue());
   }
@@ -75,7 +78,7 @@ public class SlidingWindowSumKeyVal<K, V extends Number> extends AbstractSliding
   public void emitTuple(K key, ArrayList<SlidingWindowSumObject> obj)
   {
     double sum = 0;
-    for (int i=0; i < obj.size(); ++i) {
+    for (int i = 0; i < obj.size(); ++i) {
       SlidingWindowSumObject state = obj.get(i);
       sum += state.getSum();
     }
@@ -83,13 +86,13 @@ public class SlidingWindowSumKeyVal<K, V extends Number> extends AbstractSliding
       doubleSum.emit(new KeyValPair<K, Double>(key, sum));
     }
     if (floatSum.isConnected()) {
-      floatSum.emit(new KeyValPair<K, Float>(key, (float) sum));
+      floatSum.emit(new KeyValPair<K, Float>(key, (float)sum));
     }
     if (longSum.isConnected()) {
-      longSum.emit(new KeyValPair<K, Long>(key, (long) sum));
+      longSum.emit(new KeyValPair<K, Long>(key, (long)sum));
     }
     if (integerSum.isConnected()) {
-      integerSum.emit(new KeyValPair<K, Integer>(key, (int) sum));
+      integerSum.emit(new KeyValPair<K, Integer>(key, (int)sum));
     }
   }
 

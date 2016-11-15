@@ -1,28 +1,40 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.io.jms;
 
-import com.datatorrent.api.DefaultOutputPort;
 import java.io.Serializable;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
-import javax.jms.*;
+
+import javax.jms.BytesMessage;
+import javax.jms.JMSException;
+import javax.jms.MapMessage;
+import javax.jms.Message;
+import javax.jms.ObjectMessage;
+import javax.jms.StreamMessage;
+import javax.jms.TextMessage;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.datatorrent.api.DefaultOutputPort;
 
 /**
  * An implementation of AbstractJMSInputOperator which emits TextMessage,StreamMessage,BytesMessage,MapMessage
@@ -30,6 +42,7 @@ import org.slf4j.LoggerFactory;
  *
  * @since 2.1.0
  */
+@org.apache.hadoop.classification.InterfaceStability.Evolving
 public class JMSObjectInputOperator extends AbstractJMSInputOperator<Object>
 {
   public final transient DefaultOutputPort<String> outputString = new DefaultOutputPort<String>();
@@ -50,20 +63,15 @@ public class JMSObjectInputOperator extends AbstractJMSInputOperator<Object>
   {
     if (message instanceof TextMessage) {
       return ((TextMessage)message).getText();
-    }
-    else if (message instanceof StreamMessage) {
+    } else if (message instanceof StreamMessage) {
       return ((StreamMessage)message).readString();
-    }
-    else if (message instanceof BytesMessage) {
+    } else if (message instanceof BytesMessage) {
       return extractByteArrayFromMessage((BytesMessage)message);
-    }
-    else if (message instanceof MapMessage) {
+    } else if (message instanceof MapMessage) {
       return extractMapFromMessage((MapMessage)message);
-    }
-    else if (message instanceof ObjectMessage) {
+    } else if (message instanceof ObjectMessage) {
       return extractSerializableFromMessage((ObjectMessage)message);
-    }
-    else {
+    } else {
       return message;
     }
   }
@@ -118,19 +126,16 @@ public class JMSObjectInputOperator extends AbstractJMSInputOperator<Object>
   {
     if (outputString.isConnected()) {
       outputString.emit((String)payload);
-    }
-    else if (outputMap.isConnected()) {
+    } else if (outputMap.isConnected()) {
       outputMap.emit((Map<String, Object>)payload);
-    }
-    else if (outputBytes.isConnected()) {
+    } else if (outputBytes.isConnected()) {
       outputBytes.emit((byte[])payload);
-    }
-    else {
+    } else {
       output.emit(payload);
     }
   }
 
   @SuppressWarnings("unused")
-  private static transient final Logger logger = LoggerFactory.getLogger(JMSObjectInputOperator.class);
+  private static final transient Logger logger = LoggerFactory.getLogger(JMSObjectInputOperator.class);
 
 }

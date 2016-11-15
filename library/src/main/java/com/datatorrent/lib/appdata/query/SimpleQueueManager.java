@@ -1,26 +1,28 @@
-/*
- * Copyright (c) 2015 DataTorrent, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.appdata.query;
 
 import java.util.LinkedList;
 import java.util.concurrent.Semaphore;
 
-import com.datatorrent.lib.appdata.QueueUtils.ConditionBarrier;
-
 import com.datatorrent.api.Context.OperatorContext;
+import com.datatorrent.lib.appdata.QueueUtils.ConditionBarrier;
 
 /**
  * This {@link QueueManager} functions like a standard {@link QueueManager}. Queries can be enqueued and when they are dequeued they are
@@ -31,10 +33,9 @@ import com.datatorrent.api.Context.OperatorContext;
  * @since 3.0.0
  */
 public class SimpleQueueManager<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT>
-                      implements QueueManager<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT>
+    implements QueueManager<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT>
 {
-  private LinkedList<QueryBundle<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT>> queue =
-  new LinkedList<QueryBundle<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT>>();
+  private LinkedList<QueryBundle<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT>> queue = new LinkedList<>();
 
   private final Semaphore semaphore = new Semaphore(0);
   private final ConditionBarrier conditionBarrier = new ConditionBarrier();
@@ -48,10 +49,9 @@ public class SimpleQueueManager<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT>
   {
     conditionBarrier.gate();
 
-    QueryBundle<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT> qq =
-    new QueryBundle<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT>(query, metaQuery, queueContext);
+    QueryBundle<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT> qq = new QueryBundle<>(query, metaQuery, queueContext);
 
-    if(queue.offer(qq)) {
+    if (queue.offer(qq)) {
       semaphore.release();
       return true;
     }
@@ -70,8 +70,7 @@ public class SimpleQueueManager<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT>
   {
     try {
       semaphore.acquire();
-    }
-    catch(InterruptedException ex) {
+    } catch (InterruptedException ex) {
       throw new RuntimeException(ex);
     }
 

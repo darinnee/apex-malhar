@@ -1,22 +1,22 @@
-/*
- * Copyright (c) 2015 DataTorrent, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.appdata.datastructs;
-
-import it.unimi.dsi.fastutil.longs.Long2ObjectAVLTreeMap;
-import it.unimi.dsi.fastutil.longs.Long2ObjectSortedMap;
 
 import java.util.HashMap;
 import java.util.Iterator;
@@ -26,6 +26,9 @@ import java.util.Set;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+
+import it.unimi.dsi.fastutil.longs.Long2ObjectAVLTreeMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectSortedMap;
 
 /**
  * This is an LRU cache.
@@ -50,8 +53,7 @@ public class CacheLRUSynchronousFlush<KEY, VALUE>
     setFlushListener(flushListener);
   }
 
-  public CacheLRUSynchronousFlush(int flushedSize,
-                                  CacheFlushListener<KEY, VALUE> flushListener)
+  public CacheLRUSynchronousFlush(int flushedSize, CacheFlushListener<KEY, VALUE> flushListener)
   {
     setFlushedSizePri(flushedSize);
     setFlushListener(flushListener);
@@ -100,10 +102,10 @@ public class CacheLRUSynchronousFlush<KEY, VALUE>
 
     Long oldTimeStamp = keyToTimeStamp.put(key, timeStamp);
 
-    if(oldTimeStamp == null || oldTimeStamp != timeStamp) {
+    if (oldTimeStamp == null || oldTimeStamp != timeStamp) {
       Set<KEY> keys = timeStampToKey.get(timeStamp);
 
-      if(keys == null) {
+      if (keys == null) {
         keys = Sets.newHashSet();
         timeStampToKey.put(timeStamp, keys);
       }
@@ -111,7 +113,7 @@ public class CacheLRUSynchronousFlush<KEY, VALUE>
       keys.add(key);
     }
 
-    if(oldTimeStamp != null) {
+    if (oldTimeStamp != null) {
       timeStampToKey.get(oldTimeStamp).remove(key);
     }
 
@@ -129,7 +131,7 @@ public class CacheLRUSynchronousFlush<KEY, VALUE>
     Preconditions.checkNotNull(key);
 
     Long timeStamp = keyToTimeStamp.get(key);
-    if(timeStamp != null) {
+    if (timeStamp != null) {
       keyToTimeStamp.remove(key);
       Set<KEY> keys = timeStampToKey.get(timeStamp);
       keys.remove(key);
@@ -143,17 +145,17 @@ public class CacheLRUSynchronousFlush<KEY, VALUE>
   {
     int currentSize = keyToValue.size();
 
-    while(currentSize > flushedSize) {
+    while (currentSize > flushedSize) {
       long firstKey = timeStampToKey.firstLongKey();
       Set<KEY> keys = timeStampToKey.get(firstKey);
 
       Iterator<KEY> keyIterator = keys.iterator();
 
-      while(keyIterator.hasNext() && currentSize > flushedSize) {
+      while (keyIterator.hasNext() && currentSize > flushedSize) {
         KEY key = keyIterator.next();
         VALUE value = keyToValue.remove(key);
 
-        if(value == null) {
+        if (value == null) {
           continue;
         }
 
@@ -163,7 +165,7 @@ public class CacheLRUSynchronousFlush<KEY, VALUE>
         flushListener.flush(key, value);
       }
 
-      if(keys.isEmpty()) {
+      if (keys.isEmpty()) {
         timeStampToKey.remove(firstKey);
       }
     }
@@ -171,7 +173,7 @@ public class CacheLRUSynchronousFlush<KEY, VALUE>
 
   public void flushChanges()
   {
-    for(KEY key: changed) {
+    for (KEY key : changed) {
       VALUE value = keyToValue.get(key);
       flushListener.flush(key, value);
     }

@@ -1,19 +1,21 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
-
 package com.datatorrent.contrib.redis;
 
 import java.io.IOException;
@@ -22,6 +24,8 @@ import java.util.List;
 
 import org.junit.Assert;
 import org.junit.Test;
+
+import org.apache.apex.malhar.lib.wal.FSWindowDataManager;
 
 import redis.clients.jedis.ScanParams;
 
@@ -32,7 +36,6 @@ import com.datatorrent.api.DefaultInputPort;
 import com.datatorrent.api.LocalMode;
 import com.datatorrent.common.util.BaseOperator;
 import com.datatorrent.lib.helper.OperatorContextTestHelper;
-import com.datatorrent.lib.io.IdempotentStorageManager;
 import com.datatorrent.lib.testbench.CollectorTestSink;
 import com.datatorrent.lib.util.KeyValPair;
 
@@ -132,8 +135,8 @@ public class RedisInputOperatorTest
     testStore.put("test_ghi", "123");
 
     RedisKeyValueInputOperator operator = new RedisKeyValueInputOperator();
-    operator.setIdempotentStorageManager(new IdempotentStorageManager.FSIdempotentStorageManager());
-    
+    operator.setWindowDataManager(new FSWindowDataManager());
+
     operator.setStore(operatorStore);
     operator.setScanCount(1);
     Attribute.AttributeMap attributeMap = new Attribute.AttributeMap.DefaultAttributeMap();
@@ -160,13 +163,13 @@ public class RedisInputOperatorTest
       // failure and then re-deployment of operator
       // Re-instantiating to reset values
       operator = new RedisKeyValueInputOperator();
-      operator.setIdempotentStorageManager(new IdempotentStorageManager.FSIdempotentStorageManager());
+      operator.setWindowDataManager(new FSWindowDataManager());
       operator.setStore(operatorStore);
       operator.setScanCount(1);
       operator.outputPort.setSink(sink);
       operator.setup(context);
 
-      Assert.assertEquals("largest recovery window", 2, operator.getIdempotentStorageManager().getLargestRecoveryWindow());
+      Assert.assertEquals("largest recovery window", 2, operator.getWindowDataManager().getLargestCompletedWindow());
 
       operator.beginWindow(1);
       operator.emitTuples();
@@ -186,7 +189,7 @@ public class RedisInputOperatorTest
         testStore.remove(entry.getKey());
       }
       sink.collectedTuples.clear();
-      operator.getIdempotentStorageManager().deleteUpTo(context.getId(), 5);
+      operator.getWindowDataManager().committed(5);
       operator.teardown();
     }
   }

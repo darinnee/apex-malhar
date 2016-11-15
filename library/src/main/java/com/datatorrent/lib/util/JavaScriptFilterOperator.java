@@ -1,23 +1,32 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.util;
 
 import java.util.Map;
 
-import javax.script.*;
+import javax.script.Invocable;
+import javax.script.ScriptContext;
+import javax.script.ScriptEngine;
+import javax.script.ScriptEngineManager;
+import javax.script.ScriptException;
+import javax.script.SimpleBindings;
+import javax.script.SimpleScriptContext;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -80,8 +89,7 @@ public class JavaScriptFilterOperator extends FilterOperator
       if (setupScript != null) {
         engine.eval(setupScript, this.scriptContext);
       }
-    }
-    catch (ScriptException ex) {
+    } catch (ScriptException ex) {
       LOG.error("script \"{}\" has error", setupScript);
       throw new RuntimeException(ex);
     }
@@ -101,22 +109,18 @@ public class JavaScriptFilterOperator extends FilterOperator
       Object result = ((Invocable)engine).invokeFunction(functionName);
       if (result instanceof Boolean) {
         return (Boolean)result;
-      }
-      else if (result instanceof Integer) {
+      } else if (result instanceof Integer) {
         return ((Integer)result) != 0;
-      }
-      else if (result instanceof Long) {
+      } else if (result instanceof Long) {
         return ((Long)result) != 0;
-      }
-      else if (result instanceof String) {
+      } else if (result instanceof String) {
         return Boolean.getBoolean((String)result);
-      }
-      else {
-        LOG.warn("The script result (type: {}) cannot be converted to boolean. Returning false.", result == null ? "null" : result.getClass().getName());
+      } else {
+        LOG.warn("The script result (type: {}) cannot be converted to boolean. Returning false.",
+            result == null ? "null" : result.getClass().getName());
         return false;
       }
-    }
-    catch (Exception ex) {
+    } catch (Exception ex) {
       throw new RuntimeException(ex);
     }
   }

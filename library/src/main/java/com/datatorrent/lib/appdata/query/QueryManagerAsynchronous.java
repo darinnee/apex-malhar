@@ -1,17 +1,20 @@
-/*
- * Copyright (c) 2015 DataTorrent, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.appdata.query;
 
@@ -23,21 +26,23 @@ import java.util.concurrent.Semaphore;
 
 import javax.validation.constraints.NotNull;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.datatorrent.lib.appdata.query.serde.MessageSerializerFactory;
-import com.datatorrent.lib.appdata.schemas.Result;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 
 import com.datatorrent.api.Component;
 import com.datatorrent.api.Context.OperatorContext;
 import com.datatorrent.api.DefaultOutputPort;
 import com.datatorrent.api.Operator.IdleTimeHandler;
-
 import com.datatorrent.common.util.NameableThreadFactory;
+import com.datatorrent.lib.appdata.query.serde.MessageSerializerFactory;
+import com.datatorrent.lib.appdata.schemas.Result;
+
+/**
+ * @since 3.1.0
+ */
 
 /**
  * @since 3.1.0
@@ -47,7 +52,8 @@ public class QueryManagerAsynchronous<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT, RES
 {
   private DefaultOutputPort<String> resultPort = null;
 
-  private transient final Semaphore inWindowSemaphore = new Semaphore(0);
+  //TODO I believe this semaphore is no longer necessary and can just be straight up deleted.
+  private final transient Semaphore inWindowSemaphore = new Semaphore(0);
   private final ConcurrentLinkedQueue<String> queue = new ConcurrentLinkedQueue<String>();
   private QueueManager<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT> queueManager;
   private QueryExecutor<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT, RESULT> queryExecutor;
@@ -58,10 +64,10 @@ public class QueryManagerAsynchronous<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT, RES
   private transient Thread mainThread;
 
   public QueryManagerAsynchronous(DefaultOutputPort<String> resultPort,
-                                  QueueManager<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT> queueManager,
-                                  QueryExecutor<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT, RESULT> queryExecutor,
-                                  MessageSerializerFactory messageSerializerFactory,
-                                  Thread mainThread)
+      QueueManager<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT> queueManager,
+      QueryExecutor<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT, RESULT> queryExecutor,
+      MessageSerializerFactory messageSerializerFactory,
+      Thread mainThread)
   {
     setResultPort(resultPort);
     setQueueManager(queueManager);
@@ -123,11 +129,10 @@ public class QueryManagerAsynchronous<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT, RES
   {
     queueManager.haltEnqueue();
 
-    while(queueManager.getNumLeft() > 0) {
-      if(queue.isEmpty()) {
+    while (!isProcessingDone()) {
+      if (queue.isEmpty()) {
         Thread.yield();
-      }
-      else {
+      } else {
         emptyQueue();
       }
     }
@@ -136,15 +141,24 @@ public class QueryManagerAsynchronous<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT, RES
 
     try {
       inWindowSemaphore.acquire();
-    }
-    catch(InterruptedException ex) {
+    } catch (InterruptedException ex) {
       throw new RuntimeException(ex);
     }
   }
 
+  //Dirty hack TODO fix QueManager interface
+  private boolean isProcessingDone()
+  {
+    if (queueManager instanceof AbstractWindowEndQueueManager) {
+      return ((AbstractWindowEndQueueManager)queueManager).isEmptyAndBlocked();
+    }
+
+    return queueManager.getNumLeft() == 0;
+  }
+
   private void emptyQueue()
   {
-    while(!queue.isEmpty()) {
+    while (!queue.isEmpty()) {
       resultPort.emit(queue.poll());
     }
   }
@@ -181,8 +195,7 @@ public class QueryManagerAsynchronous<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT, RES
     {
       try {
         loop();
-      }
-      catch(Exception ex) {
+      } catch (Exception ex) {
         LOG.error("Exception thrown while processing:", ex);
         mainThread.interrupt();
 
@@ -195,22 +208,20 @@ public class QueryManagerAsynchronous<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT, RES
     private void loop()
     {
       //Do this forever
-      while(true) {
+      while (true) {
         //Grab something from the queue as soon as it's available.
         QueryBundle<QUERY_TYPE, META_QUERY, QUEUE_CONTEXT> queryBundle = queueManager.dequeueBlock();
 
         try {
           inWindowSemaphore.acquire();
-        }
-        catch(InterruptedException ex) {
+        } catch (InterruptedException ex) {
           throw new RuntimeException(ex);
         }
 
         //We are gauranteed to be in the operator's window now.
-        Result result = queryExecutor.executeQuery(queryBundle.getQuery(),
-                                                   queryBundle.getMetaQuery(),
-                                                   queryBundle.getQueueContext());
-        if(result != null) {
+        Result result = queryExecutor.executeQuery(queryBundle.getQuery(), queryBundle.getMetaQuery(),
+            queryBundle.getQueueContext());
+        if (result != null) {
           String serializedMessage = messageSerializerFactory.serialize(result);
           queue.add(serializedMessage);
         }

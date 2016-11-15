@@ -1,28 +1,35 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.db.jdbc;
 
-import com.datatorrent.api.Context.OperatorContext;
-import com.datatorrent.api.DAG;
-import com.google.common.collect.Lists;
 import java.sql.SQLException;
 import java.util.List;
+
 import javax.validation.constraints.Min;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.common.collect.Lists;
+
+import com.datatorrent.api.Context.OperatorContext;
+import com.datatorrent.api.DAG;
 
 /**
  * A generic output operator which updates the database without using transactions
@@ -35,7 +42,7 @@ import org.slf4j.LoggerFactory;
  */
 public abstract class AbstractJdbcNonTransactionableBatchOutputOperator<T, S extends JdbcNonTransactionalStore> extends AbstractJdbcNonTransactionableOutputOperator<T, S>
 {
-  private static transient final Logger LOG = LoggerFactory.getLogger(AbstractJdbcNonTransactionableBatchOutputOperator.class);
+  private static final transient Logger LOG = LoggerFactory.getLogger(AbstractJdbcNonTransactionableBatchOutputOperator.class);
   public static final int DEFAULT_BATCH_SIZE = 1000;
 
   @Min(1)
@@ -90,7 +97,7 @@ public abstract class AbstractJdbcNonTransactionableBatchOutputOperator<T, S ext
 
     mode = context.getValue(OperatorContext.PROCESSING_MODE);
 
-    if(mode==ProcessingMode.AT_MOST_ONCE){
+    if (mode == ProcessingMode.AT_MOST_ONCE) {
       //Batch must be cleared to avoid writing same data twice
       tuples.clear();
     }
@@ -126,7 +133,7 @@ public abstract class AbstractJdbcNonTransactionableBatchOutputOperator<T, S ext
     super.endWindow();
 
     //This window is done so write it to the database.
-    if(committedWindowId < currentWindowId) {
+    if (committedWindowId < currentWindowId) {
       store.storeCommittedWindowId(appId, operatorId, currentWindowId);
       committedWindowId = currentWindowId;
     }
@@ -136,7 +143,7 @@ public abstract class AbstractJdbcNonTransactionableBatchOutputOperator<T, S ext
   public void processTuple(T tuple)
   {
     //Minimize duplicated data in the atleast once case
-    if(committedWindowId >= currentWindowId) {
+    if (committedWindowId >= currentWindowId) {
       return;
     }
 
@@ -146,7 +153,7 @@ public abstract class AbstractJdbcNonTransactionableBatchOutputOperator<T, S ext
       setStatementParameters(updateCommand, tuple);
       updateCommand.addBatch();
 
-      if(tuples.size() >= batchSize) {
+      if (tuples.size() >= batchSize) {
         tuples.clear();
         updateCommand.executeBatch();
         updateCommand.clearBatch();

@@ -1,26 +1,29 @@
-/*
- * Copyright (c) 2015 DataTorrent, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.appdata.datastructs;
 
 import java.util.List;
 
-import com.google.common.collect.Lists;
-
 import org.junit.Assert;
 import org.junit.Test;
+
+import com.google.common.collect.Lists;
 
 import com.datatorrent.lib.appdata.datastructs.CacheLRUSynchronousFlush.CacheFlushListener;
 
@@ -32,8 +35,8 @@ public class CacheLRUSynchronousFlushTest
     final Integer key = 1;
     final Integer value = 1;
 
-    CacheLRUSynchronousFlush<Integer, Integer> cache =
-    new CacheLRUSynchronousFlush<Integer, Integer>(new NOPCacheFlushListener<Integer, Integer>());
+    CacheLRUSynchronousFlush<Integer, Integer> cache = new CacheLRUSynchronousFlush<>(
+        new NOPCacheFlushListener<Integer, Integer>());
 
     cache.put(key, value);
 
@@ -100,8 +103,7 @@ public class CacheLRUSynchronousFlushTest
 
     try {
       Thread.sleep(10);
-    }
-    catch(InterruptedException ex) {
+    } catch (InterruptedException ex) {
       throw new RuntimeException(ex);
     }
 

@@ -1,17 +1,20 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.io;
 
@@ -20,7 +23,8 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
-import java.util.*;
+import java.util.Iterator;
+import java.util.Set;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -45,6 +49,7 @@ import com.datatorrent.api.Operator.ActivationListener;
  * @param <T>
  * @since 0.9.5
  */
+@org.apache.hadoop.classification.InterfaceStability.Evolving
 public abstract class AbstractSocketInputOperator<T> implements InputOperator, ActivationListener<OperatorContext>
 {
   /* The host to which to connect */
@@ -155,8 +160,7 @@ public abstract class AbstractSocketInputOperator<T> implements InputOperator, A
       channel.configureBlocking(false);
       channel.connect(new InetSocketAddress(hostname, port));
       channel.register(selector, SelectionKey.OP_CONNECT | SelectionKey.OP_READ);
-    }
-    catch (Exception ex) {
+    } catch (Exception ex) {
       throw new RuntimeException(ex);
     }
     lock = new ReentrantLock();
@@ -172,8 +176,7 @@ public abstract class AbstractSocketInputOperator<T> implements InputOperator, A
       selector.close();
       scanThread.interrupt();
       scanThread.join();
-    }
-    catch (Exception ex) {
+    } catch (Exception ex) {
       throw new RuntimeException(ex);
     }
   }
@@ -196,11 +199,11 @@ public abstract class AbstractSocketInputOperator<T> implements InputOperator, A
             SelectionKey nextKey = keyIterator.next();
             keyIterator.remove();
             if (nextKey.isConnectable()) {
-              SocketChannel sChannel = (SocketChannel) nextKey.channel();
+              SocketChannel sChannel = (SocketChannel)nextKey.channel();
               sChannel.finishConnect();
             }
             if (nextKey.isReadable()) {
-              SocketChannel sChannel = (SocketChannel) nextKey.channel();
+              SocketChannel sChannel = (SocketChannel)nextKey.channel();
               lock.lock();
               acquiredLock = true;
               sChannel.read(byteBuffer);
@@ -211,8 +214,7 @@ public abstract class AbstractSocketInputOperator<T> implements InputOperator, A
           // Sleep for Scan interval
           Thread.sleep(scanIntervalInMilliSeconds);
         }
-      }
-      catch (Exception e) {
+      } catch (Exception e) {
         if (acquiredLock) {
           lock.unlock();
         }

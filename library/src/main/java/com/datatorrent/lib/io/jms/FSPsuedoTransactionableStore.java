@@ -1,28 +1,38 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.io.jms;
 
-import com.datatorrent.api.annotation.Stateless;
 import java.io.IOException;
+
 import javax.jms.JMSException;
 import javax.validation.constraints.NotNull;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.*;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.LocalFileSystem;
+import org.apache.hadoop.fs.Path;
+
+import com.datatorrent.api.annotation.Stateless;
 
 /**
  * This is a JMS store which stores committed window ids in a file. This is not a true
@@ -33,6 +43,7 @@ import org.slf4j.LoggerFactory;
  *
  * @since 2.0.0
  */
+@org.apache.hadoop.classification.InterfaceStability.Evolving
 public class FSPsuedoTransactionableStore extends JMSBaseTransactionableStore
 {
   @SuppressWarnings("unused")
@@ -81,9 +92,8 @@ public class FSPsuedoTransactionableStore extends JMSBaseTransactionableStore
   {
     FileSystem tempFS = FileSystem.newInstance(new Path(recoveryDirectory).toUri(), new Configuration());
 
-    if(tempFS instanceof LocalFileSystem)
-    {
-      tempFS = ((LocalFileSystem) tempFS).getRaw();
+    if (tempFS instanceof LocalFileSystem) {
+      tempFS = ((LocalFileSystem)tempFS).getRaw();
     }
 
     return tempFS;
@@ -114,12 +124,10 @@ public class FSPsuedoTransactionableStore extends JMSBaseTransactionableStore
 
     try {
       //No committed window stored, return negative invalid window.
-      if(!fs.exists(recoveryPath))
-      {
+      if (!fs.exists(recoveryPath)) {
         return Stateless.WINDOW_ID;
       }
-    }
-    catch (IOException ex) {
+    } catch (IOException ex) {
       throw new RuntimeException(ex);
     }
 
@@ -128,16 +136,15 @@ public class FSPsuedoTransactionableStore extends JMSBaseTransactionableStore
     try {
       FileStatus[] windowFiles = fs.listStatus(recoveryPath);
 
-      for(FileStatus fileStatus: windowFiles) {
+      for (FileStatus fileStatus : windowFiles) {
         String windowString = fileStatus.getPath().getName();
         long tempWindow = Long.parseLong(windowString);
 
-        if(maxWindow < tempWindow) {
+        if (maxWindow < tempWindow) {
           maxWindow = tempWindow;
         }
       }
-    }
-    catch (IOException ex) {
+    } catch (IOException ex) {
       throw new RuntimeException(ex);
     }
 
@@ -155,14 +162,13 @@ public class FSPsuedoTransactionableStore extends JMSBaseTransactionableStore
       fs.create(windowPath);
       FileStatus[] windowFiles = fs.listStatus(recoveryPath);
 
-      for(FileStatus fileStatus: windowFiles) {
+      for (FileStatus fileStatus : windowFiles) {
         Path tempPath = fileStatus.getPath();
-        if(!tempPath.getName().equals(windowString)) {
+        if (!tempPath.getName().equals(windowString)) {
           fs.delete(tempPath, true);
         }
       }
-    }
-    catch (IOException ex) {
+    } catch (IOException ex) {
       throw new RuntimeException(ex);
     }
   }
@@ -171,10 +177,8 @@ public class FSPsuedoTransactionableStore extends JMSBaseTransactionableStore
   public void removeCommittedWindowId(String appId, int operatorId)
   {
     try {
-      fs.delete(getOperatorRecoveryPath(appId, operatorId).getParent(),
-                true);
-    }
-    catch (IOException ex) {
+      fs.delete(getOperatorRecoveryPath(appId, operatorId).getParent(), true);
+    } catch (IOException ex) {
       throw new RuntimeException(ex);
     }
   }
@@ -190,8 +194,7 @@ public class FSPsuedoTransactionableStore extends JMSBaseTransactionableStore
   {
     try {
       this.getBase().getSession().commit();
-    }
-    catch (JMSException ex) {
+    } catch (JMSException ex) {
       throw new RuntimeException(ex);
     }
 
@@ -203,8 +206,7 @@ public class FSPsuedoTransactionableStore extends JMSBaseTransactionableStore
   {
     try {
       this.getBase().getSession().rollback();
-    }
-    catch (JMSException ex) {
+    } catch (JMSException ex) {
       throw new RuntimeException(ex);
     }
 
@@ -245,13 +247,9 @@ public class FSPsuedoTransactionableStore extends JMSBaseTransactionableStore
     return false;
   }
 
-  private Path getOperatorRecoveryPath(String appId,
-                                       int operatorId)
+  private Path getOperatorRecoveryPath(String appId, int operatorId)
   {
-    return new Path(DEFAULT_RECOVERY_DIRECTORY + "/" +
-                         appId + "/" +
-                         operatorId + "/" +
-                         COMMITTED_WINDOW_DIR);
+    return new Path(DEFAULT_RECOVERY_DIRECTORY + "/" + appId + "/" + operatorId + "/" + COMMITTED_WINDOW_DIR);
   }
 
   /**
@@ -261,14 +259,9 @@ public class FSPsuedoTransactionableStore extends JMSBaseTransactionableStore
    * @param windowId The id of the current window.
    * @return The path where the windowId is stored.
    */
-  private Path getOperatorWindowRecoveryPath(String appId,
-                                       int operatorId,
-                                       long windowId)
+  private Path getOperatorWindowRecoveryPath(String appId, int operatorId, long windowId)
   {
-    return new Path(DEFAULT_RECOVERY_DIRECTORY + "/" +
-                         appId + "/" +
-                         operatorId + "/" +
-                         COMMITTED_WINDOW_DIR + "/" +
-                         windowId);
+    return new Path(DEFAULT_RECOVERY_DIRECTORY + "/" + appId + "/" + operatorId + "/" + COMMITTED_WINDOW_DIR + "/" +
+        windowId);
   }
 }

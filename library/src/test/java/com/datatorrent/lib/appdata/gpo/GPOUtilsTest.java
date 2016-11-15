@@ -1,25 +1,26 @@
-/*
- * Copyright (c) 2015 DataTorrent, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.appdata.gpo;
 
 import java.util.List;
 import java.util.Map;
-
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
+import java.util.Set;
 
 import org.codehaus.jettison.json.JSONObject;
 import org.junit.Assert;
@@ -29,7 +30,12 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.commons.lang3.mutable.MutableInt;
 
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+
 import com.datatorrent.lib.appdata.schemas.FieldsDescriptor;
+import com.datatorrent.lib.appdata.schemas.SchemaUtils;
 import com.datatorrent.lib.appdata.schemas.Type;
 
 public class GPOUtilsTest
@@ -61,14 +67,14 @@ public class GPOUtilsTest
     final Long tlongv = 10000000000L;
 
     int totalBytes = 1 //boolean
-                     + 2 //char
-                     + 4 + tstringv.getBytes().length //string
-                     + 4 //float
-                     + 8 //double
-                     + 1 //byte
-                     + 2 //short
-                     + 4 //int
-                     + 8; //long
+        + 2 //char
+        + 4 + tstringv.getBytes().length //string
+        + 4 //float
+        + 8 //double
+        + 1 //byte
+        + 2 //short
+        + 4 //int
+        + 8; //long
 
     fieldToType.put(tboolean, Type.BOOLEAN);
     fieldToType.put(tchar, Type.CHAR);
@@ -138,14 +144,14 @@ public class GPOUtilsTest
     final Long tlongv = 10000000000L;
 
     int totalBytes = 1 //boolean
-                     + 2 //char
-                     + 4 + tstringv.getBytes().length //string
-                     + 4 //float
-                     + 8 //double
-                     + 1 //byte
-                     + 2 //short
-                     + 4 //int
-                     + 8; //long
+        + 2 //char
+        + 4 + tstringv.getBytes().length //string
+        + 4 //float
+        + 8 //double
+        + 1 //byte
+        + 2 //short
+        + 4 //int
+        + 8; //long
 
     logger.debug("Correct total bytes {}.", totalBytes);
 
@@ -250,6 +256,29 @@ public class GPOUtilsTest
   }
 
   @Test
+  @SuppressWarnings("AssertEqualsBetweenInconvertibleTypes")
+  public void testDeserializeToMap() throws Exception
+  {
+    Map<String, Type> fieldToType = Maps.newHashMap();
+    fieldToType.put("name", Type.STRING);
+    fieldToType.put("longvals", Type.LONG);
+    fieldToType.put("stringvals", Type.STRING);
+
+    FieldsDescriptor fd = new FieldsDescriptor(fieldToType);
+    String json = SchemaUtils.jarResourceFileToString("deserializeToMapTest.json");
+
+    Map<String, Set<Object>> resultMap = GPOUtils.deserializeToMap(fd, new JSONObject(json));
+
+    Set<Object> names = resultMap.get("name");
+    Set<Object> longvals = resultMap.get("longvals");
+    Set<Object> stringvals = resultMap.get("stringvals");
+
+    Assert.assertEquals(Sets.newHashSet("tim"), names);
+    Assert.assertEquals(Sets.newHashSet(1L, 2L, 3L), longvals);
+    Assert.assertEquals(Sets.newHashSet("a", "b", "c"), stringvals);
+  }
+
+  @Test
   public void objectSerdeTest()
   {
     Map<String, Type> fieldToTypeKey = Maps.newHashMap();
@@ -274,9 +303,7 @@ public class GPOUtilsTest
     fieldToSerde.put("keys", SerdeListGPOMutable.INSTANCE);
     fieldToSerde.put("values", SerdeListGPOMutable.INSTANCE);
 
-    FieldsDescriptor metaDataFD = new FieldsDescriptor(fieldToType,
-                                                       fieldToSerde,
-                                                       new PayloadFix());
+    FieldsDescriptor metaDataFD = new FieldsDescriptor(fieldToType, fieldToSerde, new PayloadFix());
 
     GPOMutable gpo = new GPOMutable(metaDataFD);
 
@@ -319,13 +346,13 @@ public class GPOUtilsTest
     @Override
     public void fix(Object[] objects)
     {
-      FieldsDescriptor keyfd = (FieldsDescriptor) objects[0];
-      FieldsDescriptor valuefd = (FieldsDescriptor) objects[1];
+      FieldsDescriptor keyfd = (FieldsDescriptor)objects[0];
+      FieldsDescriptor valuefd = (FieldsDescriptor)objects[1];
 
       @SuppressWarnings("unchecked")
-      List<GPOMutable> keyMutables = (List<GPOMutable>) objects[2];
+      List<GPOMutable> keyMutables = (List<GPOMutable>)objects[2];
       @SuppressWarnings("unchecked")
-      List<GPOMutable> aggregateMutables = (List<GPOMutable>) objects[3];
+      List<GPOMutable> aggregateMutables = (List<GPOMutable>)objects[3];
 
       fix(keyfd, keyMutables);
       fix(valuefd, aggregateMutables);
@@ -333,9 +360,7 @@ public class GPOUtilsTest
 
     private void fix(FieldsDescriptor fd, List<GPOMutable> mutables)
     {
-      for(int index = 0;
-          index < mutables.size();
-          index++) {
+      for (int index = 0; index < mutables.size(); index++) {
         mutables.get(index).setFieldDescriptor(fd);
       }
     }

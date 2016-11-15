@@ -1,19 +1,21 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
-
 package com.datatorrent.contrib.util;
 
 import java.lang.reflect.Constructor;
@@ -23,26 +25,26 @@ import org.slf4j.LoggerFactory;
 
 /**
  * This is a copy from contrib, should be merged later.
- * 
+ *
  */
 public class TupleGenerator<T>
 {
   private static final Logger logger = LoggerFactory.getLogger( TupleGenerator.class );
-      
+
   private volatile long rowId = 0;
   private Constructor<T> constructor;
-  
+
   private static Class<?>[] paramTypes = new Class<?>[]{ Long.class, long.class, Integer.class, int.class };
-  
+
   public TupleGenerator()
   {
   }
-  
+
   public TupleGenerator( Class<T> tupleClass )
   {
     useTupleClass( tupleClass );
   }
-  
+
   public void useTupleClass( Class<T> tupleClass )
   {
     for( Class<?> paramType : paramTypes )
@@ -57,7 +59,7 @@ public class TupleGenerator<T>
       throw new RuntimeException( "Not found proper constructor." );
     }
   }
-  
+
   protected Constructor<T> tryGetConstructor( Class<T> tupleClass, Class<?> parameterType )
   {
     try
@@ -69,17 +71,17 @@ public class TupleGenerator<T>
       return null;
     }
   }
-  
+
   public void reset()
   {
     rowId = 0;
   }
-  
+
   public T getNextTuple()
   {
     if( constructor == null )
       throw new RuntimeException( "Not found proper constructor." );
-    
+
     long curRowId = ++rowId;
     try
     {

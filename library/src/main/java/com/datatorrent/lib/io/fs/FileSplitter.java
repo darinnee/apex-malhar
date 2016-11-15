@@ -1,24 +1,31 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.io.fs;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URI;
-import java.util.*;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingDeque;
@@ -30,13 +37,15 @@ import javax.annotation.Nullable;
 import javax.validation.constraints.Min;
 import javax.validation.constraints.NotNull;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.apex.malhar.lib.wal.WindowDataManager;
 import org.apache.commons.lang.mutable.MutableLong;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
@@ -46,28 +55,31 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
-import com.datatorrent.api.*;
+import com.datatorrent.api.Component;
+import com.datatorrent.api.Context;
+import com.datatorrent.api.DefaultOutputPort;
+import com.datatorrent.api.InputOperator;
+import com.datatorrent.api.Operator;
 import com.datatorrent.api.annotation.OperatorAnnotation;
-
-import com.datatorrent.netlet.util.DTThrowable;
 import com.datatorrent.lib.counters.BasicCounters;
-import com.datatorrent.lib.io.IdempotentStorageManager;
 import com.datatorrent.lib.io.block.BlockMetadata.FileBlockMetadata;
+import com.datatorrent.netlet.util.DTThrowable;
 
 /**
  * Input operator that scans a directory for files and splits a file into blocks.<br/>
  * The operator emits block metadata and file metadata.<br/>
  *
  * The file system/directory space should be different for different partitions of file splitter.
- * The scanning of
  *
+ * @deprecated  use {@link FileSplitterInput}. This splitter has issues with recovery and fixing that breaks backward compatibility.
  * @displayName File Splitter
  * @category Input
  * @tags file
  * @since 2.0.0
  */
 @OperatorAnnotation(checkpointableWithinAppWindow = false)
-public class FileSplitter implements InputOperator, Operator.CheckpointListener
+@Deprecated
+public class FileSplitter implements InputOperator, Operator.CheckpointListener, Operator.CheckpointNotificationListener
 {
   protected Long blockSize;
   private int sequenceNo;
@@ -87,7 +99,7 @@ public class FileSplitter implements InputOperator, Operator.CheckpointListener
   protected TimeBasedDirectoryScanner scanner;
 
   @NotNull
-  protected IdempotentStorageManager idempotentStorageManager;
+  protected WindowDataManager windowDataManager;
 
   @NotNull
   protected final transient LinkedList<FileInfo> currentWindowRecoveryState;
@@ -106,7 +118,7 @@ public class FileSplitter implements InputOperator, Operator.CheckpointListener
   {
     currentWindowRecoveryState = Lists.newLinkedList();
     fileCounters = new BasicCounters<MutableLong>(MutableLong.class);
-    idempotentStorageManager = new IdempotentStorageManager.FSIdempotentStorageManager();
+    windowDataManager = new WindowDataManager.NoopWindowDataManager();
     scanner = new TimeBasedDirectoryScanner();
     blocksThreshold = Integer.MAX_VALUE;
   }
@@ -121,12 +133,11 @@ public class FileSplitter implements InputOperator, Operator.CheckpointListener
     this.context = context;
 
     fileCounters.setCounter(Counters.PROCESSED_FILES, new MutableLong());
-    idempotentStorageManager.setup(context);
+    windowDataManager.setup(context);
 
     try {
       fs = scanner.getFSInstance();
-    }
-    catch (IOException e) {
+    } catch (IOException e) {
       throw new RuntimeException("creating fs", e);
     }
 
@@ -134,10 +145,9 @@ public class FileSplitter implements InputOperator, Operator.CheckpointListener
       blockSize = fs.getDefaultBlockSize(new Path(scanner.files.iterator().next()));
     }
 
-    if (context.getValue(Context.OperatorContext.ACTIVATION_WINDOW_ID) < idempotentStorageManager.getLargestRecoveryWindow()) {
+    if (context.getValue(Context.OperatorContext.ACTIVATION_WINDOW_ID) < windowDataManager.getLargestCompletedWindow()) {
       blockMetadataIterator = null;
-    }
-    else {
+    } else {
       //don't setup scanner while recovery
       scanner.setup(context);
     }
@@ -149,15 +159,12 @@ public class FileSplitter implements InputOperator, Operator.CheckpointListener
   {
     try {
       scanner.teardown();
-    }
-    catch (Throwable t) {
+    } catch (Throwable t) {
       DTThrowable.rethrow(t);
-    }
-    finally {
+    } finally {
       try {
         fs.close();
-      }
-      catch (IOException e) {
+      } catch (IOException e) {
         throw new RuntimeException(e);
       }
     }
@@ -168,7 +175,7 @@ public class FileSplitter implements InputOperator, Operator.CheckpointListener
   {
     blockCount = 0;
     currentWindowId = windowId;
-    if (windowId <= idempotentStorageManager.getLargestRecoveryWindow()) {
+    if (windowId <= windowDataManager.getLargestCompletedWindow()) {
       replay(windowId);
     }
   }
@@ -177,8 +184,7 @@ public class FileSplitter implements InputOperator, Operator.CheckpointListener
   {
     try {
       @SuppressWarnings("unchecked")
-      LinkedList<FileInfo> recoveredData = (LinkedList<FileInfo>) idempotentStorageManager.load(operatorId,
-        windowId);
+      LinkedList<FileInfo> recoveredData = (LinkedList<FileInfo>)windowDataManager.retrieve(windowId);
       if (recoveredData == null) {
         //This could happen when there are multiple physical instances and one of them is ahead in processing windows.
         return;
@@ -189,8 +195,7 @@ public class FileSplitter implements InputOperator, Operator.CheckpointListener
       for (FileInfo info : recoveredData) {
         if (info.directoryPath != null) {
           scanner.lastModifiedTimes.put(info.directoryPath, info.modifiedTime);
-        }
-        else { //no directory
+        } else { //no directory
           scanner.lastModifiedTimes.put(info.relativeFilePath, info.modifiedTime);
         }
 
@@ -204,11 +209,10 @@ public class FileSplitter implements InputOperator, Operator.CheckpointListener
         }
       }
 
-      if (windowId == idempotentStorageManager.getLargestRecoveryWindow()) {
+      if (windowId == windowDataManager.getLargestCompletedWindow()) {
         scanner.setup(context);
       }
-    }
-    catch (IOException e) {
+    } catch (IOException e) {
       throw new RuntimeException("replay", e);
     }
   }
@@ -216,7 +220,7 @@ public class FileSplitter implements InputOperator, Operator.CheckpointListener
   @Override
   public void emitTuples()
   {
-    if (currentWindowId <= idempotentStorageManager.getLargestRecoveryWindow()) {
+    if (currentWindowId <= windowDataManager.getLargestCompletedWindow()) {
       return;
     }
 
@@ -246,8 +250,7 @@ public class FileSplitter implements InputOperator, Operator.CheckpointListener
         if (fileInfo.lastFileOfScan) {
           break;
         }
-      }
-      catch (IOException e) {
+      } catch (IOException e) {
         throw new RuntimeException("creating metadata", e);
       }
     }
@@ -256,11 +259,10 @@ public class FileSplitter implements InputOperator, Operator.CheckpointListener
   @Override
   public void endWindow()
   {
-    if (currentWindowId > idempotentStorageManager.getLargestRecoveryWindow()) {
+    if (currentWindowId > windowDataManager.getLargestCompletedWindow()) {
       try {
-        idempotentStorageManager.save(currentWindowRecoveryState, operatorId, currentWindowId);
-      }
-      catch (IOException e) {
+        windowDataManager.save(currentWindowRecoveryState, currentWindowId);
+      } catch (IOException e) {
         throw new RuntimeException("saving recovery", e);
       }
     }
@@ -276,8 +278,7 @@ public class FileSplitter implements InputOperator, Operator.CheckpointListener
     while (blockMetadataIterator.hasNext()) {
       if (blockCount++ < blocksThreshold) {
         this.blocksMetadataOutput.emit(blockMetadataIterator.next());
-      }
-      else {
+      } else {
         return false;
       }
     }
@@ -289,7 +290,7 @@ public class FileSplitter implements InputOperator, Operator.CheckpointListener
    * Can be overridden for creating block metadata of a type that extends {@link FileBlockMetadata}
    */
   protected FileBlockMetadata createBlockMetadata(long pos, long lengthOfFileInBlock, int blockNumber,
-                                                  FileMetadata fileMetadata, boolean isLast)
+      FileMetadata fileMetadata, boolean isLast)
   {
     return new FileBlockMetadata(fileMetadata.getFilePath(), fileMetadata.getBlockIds()[blockNumber - 1], pos,
       lengthOfFileInBlock, isLast, blockNumber == 1 ? -1 : fileMetadata.getBlockIds()[blockNumber - 2]);
@@ -317,7 +318,7 @@ public class FileSplitter implements InputOperator, Operator.CheckpointListener
     fileMetadata.setFileLength(status.getLen());
 
     if (!status.isDirectory()) {
-      int noOfBlocks = (int) ((status.getLen() / blockSize) + (((status.getLen() % blockSize) == 0) ? 0 : 1));
+      int noOfBlocks = (int)((status.getLen() / blockSize) + (((status.getLen() % blockSize) == 0) ? 0 : 1));
       if (fileMetadata.getDataOffset() >= status.getLen()) {
         noOfBlocks = 0;
       }
@@ -331,7 +332,7 @@ public class FileSplitter implements InputOperator, Operator.CheckpointListener
   {
     // block ids are 32 bits of operatorId | 32 bits of sequence number
     long[] blockIds = new long[fileMetadata.getNumberOfBlocks()];
-    long longLeftSide = ((long) operatorId) << 32;
+    long longLeftSide = ((long)operatorId) << 32;
     for (int i = 0; i < fileMetadata.getNumberOfBlocks(); i++) {
       blockIds[i] = longLeftSide | sequenceNo++ & 0xFFFFFFFFL;
     }
@@ -368,14 +369,19 @@ public class FileSplitter implements InputOperator, Operator.CheckpointListener
     return this.scanner;
   }
 
-  public void setIdempotentStorageManager(IdempotentStorageManager idempotentStorageManager)
+  public void setWindowDataManager(WindowDataManager windowDataManager)
   {
-    this.idempotentStorageManager = idempotentStorageManager;
+    this.windowDataManager = windowDataManager;
   }
 
-  public IdempotentStorageManager getIdempotentStorageManager()
+  public WindowDataManager getWindowDataManager()
   {
-    return this.idempotentStorageManager;
+    return this.windowDataManager;
+  }
+
+  @Override
+  public void beforeCheckpoint(long l)
+  {
   }
 
   @Override
@@ -387,9 +393,8 @@ public class FileSplitter implements InputOperator, Operator.CheckpointListener
   public void committed(long l)
   {
     try {
-      idempotentStorageManager.deleteUpTo(operatorId, l);
-    }
-    catch (IOException e) {
+      windowDataManager.committed(l);
+    } catch (IOException e) {
       throw new RuntimeException(e);
     }
   }
@@ -454,6 +459,7 @@ public class FileSplitter implements InputOperator, Operator.CheckpointListener
   /**
    * Represents the file metadata - file path, name, no. of blocks, etc.
    */
+  @Deprecated
   public static class FileMetadata
   {
     @NotNull
@@ -614,6 +620,7 @@ public class FileSplitter implements InputOperator, Operator.CheckpointListener
     }
   }
 
+  @Deprecated
   public static class TimeBasedDirectoryScanner implements Component<Context.OperatorContext>, Runnable
   {
     private static long DEF_SCAN_INTERVAL_MILLIS = 5000;
@@ -665,8 +672,7 @@ public class FileSplitter implements InputOperator, Operator.CheckpointListener
       }
       try {
         fs = getFSInstance();
-      }
-      catch (IOException e) {
+      } catch (IOException e) {
         throw new RuntimeException("opening fs", e);
       }
       scanService.submit(this);
@@ -679,8 +685,7 @@ public class FileSplitter implements InputOperator, Operator.CheckpointListener
       scanService.shutdownNow();
       try {
         fs.close();
-      }
-      catch (IOException e) {
+      } catch (IOException e) {
         throw new RuntimeException("closing fs", e);
       }
     }
@@ -702,13 +707,11 @@ public class FileSplitter implements InputOperator, Operator.CheckpointListener
               scan(new Path(afile), null);
             }
             scanComplete();
-          }
-          else {
+          } else {
             Thread.sleep(sleepMillis);
           }
         }
-      }
-      catch (Throwable throwable) {
+      } catch (Throwable throwable) {
         LOG.error("service", throwable);
         running = false;
         atomicThrowable.set(throwable);
@@ -770,29 +773,25 @@ public class FileSplitter implements InputOperator, Operator.CheckpointListener
             LOG.debug("found {}", childPathStr);
 
             FileInfo info;
-            if(rootPath == null) {
-             info =parentStatus.isDirectory() ?
-                new FileInfo(parentPathStr, childPath.getName(), parentStatus.getModificationTime()) :
-                new FileInfo(null, childPathStr, parentStatus.getModificationTime());
-            }
-            else {
+            if (rootPath == null) {
+              info = parentStatus.isDirectory() ?
+                  new FileInfo(parentPathStr, childPath.getName(), parentStatus.getModificationTime()) :
+                  new FileInfo(null, childPathStr, parentStatus.getModificationTime());
+            } else {
               URI relativeChildURI = rootPath.toUri().relativize(childPath.toUri());
               info = new FileInfo(rootPath.toUri().getPath(), relativeChildURI.getPath(),
-                parentStatus.getModificationTime());
+                  parentStatus.getModificationTime());
             }
 
             discoveredFiles.add(info);
-          }
-          else {
+          } else {
             // don't look at it again
             ignoredFiles.add(childPathStr);
           }
         }
-      }
-      catch (FileNotFoundException fnf) {
+      } catch (FileNotFoundException fnf) {
         LOG.warn("Failed to list directory {}", filePath, fnf);
-      }
-      catch (IOException e) {
+      } catch (IOException e) {
         throw new RuntimeException("listing files", e);
       }
     }
@@ -807,7 +806,7 @@ public class FileSplitter implements InputOperator, Operator.CheckpointListener
      * @throws IOException
      */
     protected boolean skipFile(@SuppressWarnings("unused") @NotNull Path path, @NotNull Long modificationTime,
-                               Long lastModificationTime) throws IOException
+        Long lastModificationTime) throws IOException
     {
       return (!(lastModificationTime == null || modificationTime > lastModificationTime));
     }
@@ -939,6 +938,7 @@ public class FileSplitter implements InputOperator, Operator.CheckpointListener
   /**
    * A class that represents the file discovered by time-based scanner.
    */
+  @Deprecated
   protected static class FileInfo
   {
     protected final String directoryPath;

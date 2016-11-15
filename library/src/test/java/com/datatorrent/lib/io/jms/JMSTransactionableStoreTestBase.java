@@ -1,30 +1,39 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.io.jms;
+
+import java.io.File;
+
+import javax.jms.JMSException;
+
+import org.junit.Assert;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TestWatcher;
+
+import org.apache.commons.io.FileUtils;
 
 import com.datatorrent.api.Attribute.AttributeMap.DefaultAttributeMap;
 import com.datatorrent.api.DAG;
 import com.datatorrent.lib.helper.OperatorContextTestHelper.TestIdOperatorContext;
 import com.datatorrent.lib.io.jms.JMSOutputOperatorTest.JMSStringSinglePortOutputOperator;
 import com.datatorrent.lib.util.ActiveMQMultiTypeMessageListener;
-import java.io.File;
-import javax.jms.JMSException;
-import org.apache.commons.io.FileUtils;
-import org.junit.*;
-import org.junit.rules.TestWatcher;
 
 /**
  * Base testing class for testing transactionable store implementations.
@@ -79,11 +88,7 @@ public class JMSTransactionableStoreTestBase extends JMSTestBase
 
     try {
       store = storeClass.newInstance();
-    }
-    catch (InstantiationException ex) {
-      throw new RuntimeException(ex);
-    }
-    catch (IllegalAccessException ex) {
+    } catch (InstantiationException | IllegalAccessException ex) {
       throw new RuntimeException(ex);
     }
 
@@ -107,7 +112,7 @@ public class JMSTransactionableStoreTestBase extends JMSTestBase
    */
   private void deleteOperator()
   {
-      outputOperator.teardown();
+    outputOperator.teardown();
   }
 
   //@Ignore
@@ -189,20 +194,13 @@ public class JMSTransactionableStoreTestBase extends JMSTestBase
     deleteOperator();
   }
 
-  //@Ignore
   @Test
-  public void commitTest()
+  public void commitTest() throws JMSException, InterruptedException
   {
     final ActiveMQMultiTypeMessageListener listener = new ActiveMQMultiTypeMessageListener();
     listener.setSubject(SUBJECT);
 
-    try {
-      listener.setupConnection();
-    }
-    catch (JMSException ex) {
-      throw new RuntimeException(ex);
-    }
-
+    listener.setupConnection();
     listener.run();
 
     createOperator();
@@ -210,23 +208,11 @@ public class JMSTransactionableStoreTestBase extends JMSTestBase
     store.beginTransaction();
     outputOperator.inputPort.put("a");
 
-    try {
-      Thread.sleep(500);
-    }
-    catch (InterruptedException ex) {
-      throw new RuntimeException(ex);
-    }
-
+    Thread.sleep(500);
     Assert.assertEquals(0, listener.receivedData.size());
     store.commitTransaction();
 
-    try {
-      Thread.sleep(500);
-    }
-    catch (InterruptedException ex) {
-      throw new RuntimeException(ex);
-    }
-
+    Thread.sleep(500);
     Assert.assertEquals(1, listener.receivedData.size());
 
     deleteOperator();

@@ -1,17 +1,20 @@
-/*
- * Copyright (c) 2015 DataTorrent, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.appdata.query.serde;
 
@@ -40,8 +43,7 @@ public class SchemaQueryDeserializer implements CustomMessageDeserializer
   {
     try {
       return deserializeHelper(json, message, context);
-    }
-    catch(Exception ex) {
+    } catch (Exception ex) {
       throw new RuntimeException(ex);
     }
   }
@@ -52,7 +54,7 @@ public class SchemaQueryDeserializer implements CustomMessageDeserializer
 
     String type = schemaJO.getString(Query.FIELD_TYPE);
 
-    if(!type.equals(SchemaQuery.TYPE)) {
+    if (!type.equals(SchemaQuery.TYPE)) {
       LOG.error("The given type {} is invalid.", type);
       return null;
     }
@@ -61,36 +63,34 @@ public class SchemaQueryDeserializer implements CustomMessageDeserializer
     Map<String, String> contextKeysMap = null;
     Map<String, String> schemaKeysMap = null;
 
-    if(schemaJO.has(SchemaQuery.FIELD_CONTEXT)) {
+    if (schemaJO.has(SchemaQuery.FIELD_CONTEXT)) {
       JSONObject contextJO = schemaJO.getJSONObject(SchemaQuery.FIELD_CONTEXT);
 
-      if(contextJO.length() == 0) {
+      if (contextJO.length() == 0) {
         LOG.error("The context cannot be empty");
         return null;
       }
 
-      if(contextJO.has(SchemaQuery.FIELD_CONTEXT_KEYS)) {
+      if (contextJO.has(SchemaQuery.FIELD_CONTEXT_KEYS)) {
         JSONObject keys = contextJO.getJSONObject(SchemaQuery.FIELD_CONTEXT_KEYS);
         contextKeysMap = SchemaUtils.extractMap(keys);
 
-        if(contextKeysMap.isEmpty()) {
+        if (contextKeysMap.isEmpty()) {
           contextKeysMap = null;
         }
       }
 
-      if(contextJO.has(SchemaQuery.FIELD_SCHEMA_KEYS)) {
+      if (contextJO.has(SchemaQuery.FIELD_SCHEMA_KEYS)) {
         JSONObject schemaKeys = contextJO.getJSONObject(SchemaQuery.FIELD_SCHEMA_KEYS);
         schemaKeysMap = SchemaUtils.extractMap(schemaKeys);
 
-        if(schemaKeysMap.isEmpty()) {
+        if (schemaKeysMap.isEmpty()) {
           schemaKeysMap = null;
         }
       }
     }
 
-    SchemaQuery sq = new SchemaQuery(id,
-                           schemaKeysMap,
-                           contextKeysMap);
+    SchemaQuery sq = new SchemaQuery(id, schemaKeysMap, contextKeysMap);
 
     return sq;
   }

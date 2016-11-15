@@ -1,24 +1,27 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.math;
 
-import com.datatorrent.common.util.BaseOperator;
 import com.datatorrent.api.DefaultInputPort;
 import com.datatorrent.api.DefaultOutputPort;
 import com.datatorrent.api.annotation.Stateless;
+import com.datatorrent.common.util.BaseOperator;
 
 /**
  * This operator does a logical comparison of a constant with a tuple.
@@ -51,78 +54,78 @@ import com.datatorrent.api.annotation.Stateless;
  */
 @Stateless
 public class LogicalCompareToConstant<T extends Comparable<? super T>> extends
-		BaseOperator
+    BaseOperator
 {
 
-	/**
-	 * Compare constant, set by application.
-	 */
-	private T constant;
+  /**
+   * Compare constant, set by application.
+   */
+  private T constant;
 
-	/**
-	 * Input port that takes a comparable to compare it with a constant.
-	 */
-	public final transient DefaultInputPort<T> input = new DefaultInputPort<T>()
-	{
-		@Override
-		public void process(T tuple)
-		{
-			int i = constant.compareTo(tuple);
-			if (i > 0) {
-				greaterThan.emit(tuple);
-				greaterThanOrEqualTo.emit(tuple);
-				notEqualTo.emit(tuple);
-			} else if (i < 0) {
-				lessThan.emit(tuple);
-				lessThanOrEqualTo.emit(tuple);
-				notEqualTo.emit(tuple);
-			} else {
-				equalTo.emit(tuple);
-				lessThanOrEqualTo.emit(tuple);
-				greaterThanOrEqualTo.emit(tuple);
-			}
-		}
+  /**
+   * Input port that takes a comparable to compare it with a constant.
+   */
+  public final transient DefaultInputPort<T> input = new DefaultInputPort<T>()
+  {
+    @Override
+    public void process(T tuple)
+    {
+      int i = constant.compareTo(tuple);
+      if (i > 0) {
+        greaterThan.emit(tuple);
+        greaterThanOrEqualTo.emit(tuple);
+        notEqualTo.emit(tuple);
+      } else if (i < 0) {
+        lessThan.emit(tuple);
+        lessThanOrEqualTo.emit(tuple);
+        notEqualTo.emit(tuple);
+      } else {
+        equalTo.emit(tuple);
+        lessThanOrEqualTo.emit(tuple);
+        greaterThanOrEqualTo.emit(tuple);
+      }
+    }
 
-	};
+  };
 
-	/**
-	 * Equal output port.
-	 */
-	public final transient DefaultOutputPort<T> equalTo = new DefaultOutputPort<T>();
+  /**
+   * Equal output port.
+   */
+  public final transient DefaultOutputPort<T> equalTo = new DefaultOutputPort<T>();
 
-	/**
-	 * Not Equal output port.
-	 */
-	public final transient DefaultOutputPort<T> notEqualTo = new DefaultOutputPort<T>();
+  /**
+   * Not Equal output port.
+   */
+  public final transient DefaultOutputPort<T> notEqualTo = new DefaultOutputPort<T>();
 
-	/**
-	 * Less Than output port.
-	 */
-	public final transient DefaultOutputPort<T> lessThan = new DefaultOutputPort<T>();
+  /**
+   * Less Than output port.
+   */
+  public final transient DefaultOutputPort<T> lessThan = new DefaultOutputPort<T>();
 
-	/**
-	 * Greater than output port.
-	 */
-	public final transient DefaultOutputPort<T> greaterThan = new DefaultOutputPort<T>();
-	public final transient DefaultOutputPort<T> lessThanOrEqualTo = new DefaultOutputPort<T>();
-	public final transient DefaultOutputPort<T> greaterThanOrEqualTo = new DefaultOutputPort<T>();
+  /**
+   * Greater than output port.
+   */
+  public final transient DefaultOutputPort<T> greaterThan = new DefaultOutputPort<T>();
+  public final transient DefaultOutputPort<T> lessThanOrEqualTo = new DefaultOutputPort<T>();
+  public final transient DefaultOutputPort<T> greaterThanOrEqualTo = new DefaultOutputPort<T>();
 
-	/**
-	 * Set constant for comparison.
-	 * 
-	 * @param constant
-	 *          the constant to set
-	 */
-	public void setConstant(T constant)
-	{
-		this.constant = constant;
-	}
+  /**
+   * Set constant for comparison.
+   *
+   * @param constant
+   *          the constant to set
+   */
+  public void setConstant(T constant)
+  {
+    this.constant = constant;
+  }
 
-	/**
-	 * returns the value of constant
-	 */
-	public T getConstant()
-	{
-		return constant;
-	}
+  /**
+   * returns the value of constant
+   */
+  public T getConstant()
+  {
+    return constant;
+  }
 }

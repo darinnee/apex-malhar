@@ -1,19 +1,25 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.stream;
+
+import java.util.HashMap;
+import java.util.Map;
 
 import com.datatorrent.api.DefaultInputPort;
 import com.datatorrent.api.DefaultOutputPort;
@@ -21,8 +27,6 @@ import com.datatorrent.api.annotation.OutputPortFieldAnnotation;
 import com.datatorrent.api.annotation.Stateless;
 import com.datatorrent.lib.util.BaseKeyValueOperator;
 import com.datatorrent.lib.util.KeyValPair;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * An implementation of BaseKeyValueOperator that breaks a HashMap tuple into objects.
@@ -49,47 +53,47 @@ import java.util.Map;
 @Stateless
 public class HashMapToKeyValPair<K, V> extends BaseKeyValueOperator<K, V>
 {
-	/**
-	 * Input port that takes a hashmap of &lt;key,value&rt;.
-	 */
-	public final transient DefaultInputPort<HashMap<K, V>> data = new DefaultInputPort<HashMap<K, V>>()
-	{
-		/**
-		 * Emits key, key/val pair, and val based on port connections
-		 */
-		@Override
-		public void process(HashMap<K, V> tuple)
-		{
-			for (Map.Entry<K, V> e : tuple.entrySet()) {
-				if (key.isConnected()) {
-					key.emit(cloneKey(e.getKey()));
-				}
-				if (val.isConnected()) {
-					val.emit(cloneValue(e.getValue()));
-				}
-				if (keyval.isConnected()) {
-					keyval.emit(new KeyValPair<K, V>(cloneKey(e.getKey()), cloneValue(e
-							.getValue())));
-				}
-			}
-		}
-	};
+  /**
+   * Input port that takes a hashmap of &lt;key,value&rt;.
+   */
+  public final transient DefaultInputPort<HashMap<K, V>> data = new DefaultInputPort<HashMap<K, V>>()
+  {
+    /**
+     * Emits key, key/val pair, and val based on port connections
+     */
+    @Override
+    public void process(HashMap<K, V> tuple)
+    {
+      for (Map.Entry<K, V> e : tuple.entrySet()) {
+        if (key.isConnected()) {
+          key.emit(cloneKey(e.getKey()));
+        }
+        if (val.isConnected()) {
+          val.emit(cloneValue(e.getValue()));
+        }
+        if (keyval.isConnected()) {
+          keyval.emit(new KeyValPair<K, V>(cloneKey(e.getKey()), cloneValue(e
+              .getValue())));
+        }
+      }
+    }
+  };
 
-	/**
-	 * Key output port.
-	 */
-	@OutputPortFieldAnnotation(optional = true)
-	public final transient DefaultOutputPort<K> key = new DefaultOutputPort<K>();
+  /**
+   * Key output port.
+   */
+  @OutputPortFieldAnnotation(optional = true)
+  public final transient DefaultOutputPort<K> key = new DefaultOutputPort<K>();
 
-	/**
-	 * key/value pair output port.
-	 */
-	@OutputPortFieldAnnotation(optional = true)
-	public final transient DefaultOutputPort<KeyValPair<K, V>> keyval = new DefaultOutputPort<KeyValPair<K, V>>();
+  /**
+   * key/value pair output port.
+   */
+  @OutputPortFieldAnnotation(optional = true)
+  public final transient DefaultOutputPort<KeyValPair<K, V>> keyval = new DefaultOutputPort<KeyValPair<K, V>>();
 
-	/**
-	 * Value output port.
-	 */
-	@OutputPortFieldAnnotation(optional = true)
-	public final transient DefaultOutputPort<V> val = new DefaultOutputPort<V>();
+  /**
+   * Value output port.
+   */
+  @OutputPortFieldAnnotation(optional = true)
+  public final transient DefaultOutputPort<V> val = new DefaultOutputPort<V>();
 }

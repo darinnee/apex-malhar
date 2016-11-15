@@ -1,31 +1,35 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.testbench;
 
-
-import com.datatorrent.common.util.BaseOperator;
-import com.datatorrent.api.DefaultInputPort;
-import com.datatorrent.api.DefaultOutputPort;
-import com.datatorrent.api.Context.OperatorContext;
-
 import java.util.HashMap;
 import java.util.Map;
+
 import javax.validation.constraints.Min;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.datatorrent.api.Context.OperatorContext;
+import com.datatorrent.api.DefaultInputPort;
+import com.datatorrent.api.DefaultOutputPort;
+import com.datatorrent.common.util.BaseOperator;
 
 /**
  * This operator expects incoming tuples to be of type HashMap&lt;String, Integer&gt;.&nbsp;
@@ -153,8 +157,7 @@ public class ThroughputCounter<K, V extends Number> extends BaseOperator
     long tuples_per_sec = (tuple_count * 1000) / elapsedTime; // * 1000 as elapsedTime is in millis
     if (rolling_window_count == 1) {
       average = tuples_per_sec;
-    }
-    else { // use tuple_numbers
+    } else { // use tuple_numbers
       long slots;
       if (count_denominator == rolling_window_count) {
         tuple_numbers[tuple_index] = tuple_count;
@@ -164,8 +167,7 @@ public class ThroughputCounter<K, V extends Number> extends BaseOperator
         if (tuple_index == rolling_window_count) {
           tuple_index = 0;
         }
-      }
-      else {
+      } else {
         tuple_numbers[count_denominator - 1] = tuple_count;
         time_numbers[count_denominator - 1] = elapsedTime;
         slots = count_denominator;

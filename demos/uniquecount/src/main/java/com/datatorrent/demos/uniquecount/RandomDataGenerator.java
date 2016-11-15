@@ -1,27 +1,33 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.demos.uniquecount;
+
+import java.util.HashMap;
+import java.util.Random;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.datatorrent.api.Context;
 import com.datatorrent.api.DefaultOutputPort;
 import com.datatorrent.api.InputOperator;
 import com.datatorrent.lib.util.KeyValPair;
-
-import java.util.HashMap;
-import java.util.Random;
 
 /**
  * Generate random Key value pairs.
@@ -33,6 +39,7 @@ public class RandomDataGenerator implements InputOperator
 {
   public final transient DefaultOutputPort<KeyValPair<String, Object>> outPort = new DefaultOutputPort<KeyValPair<String, Object>>();
   private HashMap<String, Integer> dataInfo;
+  private final transient Logger LOG = LoggerFactory.getLogger(RandomDataGenerator.class);
   private int count;
   private int sleepMs = 10;
   private int keyRange = 100;
@@ -48,15 +55,15 @@ public class RandomDataGenerator implements InputOperator
   @Override
   public void emitTuples()
   {
-    for(int i = 0 ; i < tupleBlast; i++) {
+    for (int i = 0; i < tupleBlast; i++) {
       String key = String.valueOf(random.nextInt(keyRange));
       int val = random.nextInt(valueRange);
       outPort.emit(new KeyValPair<String, Object>(key, val));
     }
     try {
       Thread.sleep(sleepMs);
-    } catch(Exception ex) {
-      System.out.println(ex.getMessage());
+    } catch (Exception ex) {
+      LOG.error(ex.getMessage());
     }
     count++;
   }
@@ -90,7 +97,7 @@ public class RandomDataGenerator implements InputOperator
   @Override
   public void endWindow()
   {
-    System.out.println("emitTuples called  " + count + " times in this window");
+    LOG.debug("emitTuples called  " + count + " times in this window");
     count = 0;
   }
 

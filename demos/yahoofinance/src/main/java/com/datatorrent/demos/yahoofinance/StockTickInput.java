@@ -1,40 +1,50 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.demos.yahoofinance;
 
-import au.com.bytecode.opencsv.CSVReader;
-
-import com.datatorrent.api.DefaultOutputPort;
-import com.datatorrent.api.InputOperator;
-import com.datatorrent.api.Context.OperatorContext;
-import com.datatorrent.api.annotation.OutputPortFieldAnnotation;
-import com.datatorrent.lib.util.KeyValPair;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+
 import javax.validation.constraints.NotNull;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.commons.httpclient.HttpClient;
 import org.apache.commons.httpclient.HttpStatus;
 import org.apache.commons.httpclient.cookie.CookiePolicy;
 import org.apache.commons.httpclient.methods.GetMethod;
 import org.apache.commons.httpclient.params.DefaultHttpParams;
 import org.apache.hadoop.util.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
+import com.datatorrent.api.Context.OperatorContext;
+import com.datatorrent.api.DefaultOutputPort;
+import com.datatorrent.api.InputOperator;
+import com.datatorrent.api.annotation.OutputPortFieldAnnotation;
+import com.datatorrent.lib.util.KeyValPair;
+
+import au.com.bytecode.opencsv.CSVReader;
 
 /**
  * This operator sends price, volume and time into separate ports and calculates incremental volume.
@@ -83,14 +93,14 @@ public class StockTickInput implements InputOperator
   private String prepareURL()
   {
     String str = "http://download.finance.yahoo.com/d/quotes.csv?s=";
-      for (int i = 0; i < symbols.length; i++) {
-        if (i != 0) {
-          str += ",";
-        }
-        str += symbols[i];
+    for (int i = 0; i < symbols.length; i++) {
+      if (i != 0) {
+        str += ",";
       }
-      str += "&f=sl1vt1&e=.csv";
-      return str;
+      str += symbols[i];
+    }
+    str += "&f=sl1vt1&e=.csv";
+    return str;
   }
 
   @Override
@@ -115,8 +125,7 @@ public class StockTickInput implements InputOperator
       int statusCode = client.executeMethod(method);
       if (statusCode != HttpStatus.SC_OK) {
         logger.error("Method failed: " + method.getStatusLine());
-      }
-      else {
+      } else {
         InputStream istream = method.getResponseBodyAsStream();
         // Process response
         InputStreamReader isr = new InputStreamReader(istream);
@@ -147,11 +156,9 @@ public class StockTickInput implements InputOperator
         }
       }
       Thread.sleep(readIntervalMillis);
-    }
-    catch (InterruptedException ex) {
+    } catch (InterruptedException ex) {
       logger.debug(ex.toString());
-    }
-    catch (IOException ex) {
+    } catch (IOException ex) {
       logger.debug(ex.toString());
     }
   }

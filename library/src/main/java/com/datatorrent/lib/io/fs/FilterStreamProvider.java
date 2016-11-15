@@ -1,24 +1,32 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.io.fs;
 
 import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 import com.google.common.collect.Maps;
 
@@ -31,10 +39,10 @@ import com.google.common.collect.Maps;
 public interface FilterStreamProvider<F extends FilterOutputStream, S extends OutputStream>
 {
   public FilterStreamContext<F> getFilterStreamContext(S outputStream) throws IOException;
-  
+
   public void reclaimFilterStreamContext(FilterStreamContext<F> filterStreamContext);
-  
-  public static abstract class SimpleFilterReusableStreamProvider<F extends FilterOutputStream, S extends OutputStream> implements FilterStreamProvider<F, S>
+
+  abstract class SimpleFilterReusableStreamProvider<F extends FilterOutputStream, S extends OutputStream> implements FilterStreamProvider<F, S>
   {
 
     private transient Map<OutputStream, FilterStreamContext<F>> reusableContexts = Maps.newHashMap();
@@ -59,7 +67,7 @@ public interface FilterStreamProvider<F extends FilterOutputStream, S extends Ou
         reusableContexts.put(outputStream, filterStreamContext);
       }
     }
-    
+
     protected abstract FilterStreamContext<F> createFilterStreamContext(OutputStream outputStream) throws IOException;
   }
 
@@ -70,7 +78,7 @@ public interface FilterStreamProvider<F extends FilterOutputStream, S extends Ou
   public static class FilterChainStreamProvider<F extends FilterOutputStream, S extends OutputStream> implements FilterStreamProvider<F, S>
   {
     private List<FilterStreamProvider<?,?>> streamProviders = new ArrayList<FilterStreamProvider<?, ?>>();
-    
+
     public Collection<FilterStreamProvider<?,?>> getStreamProviders()
     {
       return Collections.unmodifiableList(streamProviders);
@@ -80,7 +88,7 @@ public interface FilterStreamProvider<F extends FilterOutputStream, S extends Ou
     {
       streamProviders.add(streamProvider);
     }
-    
+
     @Override
     public FilterStreamContext<F> getFilterStreamContext(S outputStream) throws IOException
     {
@@ -109,8 +117,10 @@ public interface FilterStreamProvider<F extends FilterOutputStream, S extends Ou
       }
     }
 
-    private class FilterChainStreamContext extends FilterStreamContext.BaseFilterStreamContext implements FilterStreamContext {
-      
+    private class FilterChainStreamContext extends FilterStreamContext.BaseFilterStreamContext
+        implements FilterStreamContext
+    {
+
       private List<FilterStreamContext<?>> streamContexts = new ArrayList<FilterStreamContext<?>>();
 
       public void pushStreamContext(FilterStreamContext<?> streamContext)
@@ -118,7 +128,7 @@ public interface FilterStreamProvider<F extends FilterOutputStream, S extends Ou
         streamContexts.add(0, streamContext);
         filterStream = streamContext.getFilterStream();
       }
-      
+
       public Collection<FilterStreamContext<?>> getStreamContexts()
       {
         return Collections.unmodifiableCollection(streamContexts);

@@ -1,37 +1,40 @@
-/*
- * Copyright (c) 2015 DataTorrent, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.appdata.gpo;
 
 import java.io.Serializable;
 import java.lang.reflect.Array;
-
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Maps;
-
 import org.codehaus.jettison.json.JSONArray;
 import org.codehaus.jettison.json.JSONException;
 import org.codehaus.jettison.json.JSONObject;
 
 import org.apache.commons.lang3.mutable.MutableInt;
+
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 
 import com.datatorrent.lib.appdata.schemas.Fields;
 import com.datatorrent.lib.appdata.schemas.FieldsDescriptor;
@@ -87,7 +90,7 @@ public class GPOUtils
   public static Map<String, Type> buildTypeMap(JSONObject jo) throws JSONException
   {
     Map<String, Type> fieldToType = Maps.newHashMap();
-    for(Iterator<String> keys = (Iterator<String>) jo.keys();
+    for (Iterator<String> keys = (Iterator<String>)jo.keys();
         keys.hasNext();) {
       String key = keys.next();
       String val = jo.getString(key);
@@ -104,19 +107,66 @@ public class GPOUtils
    * @param dpou The JSONObject to deserialize from.
    * @return The deserialized GPOMutable object.
    */
-  public static GPOMutable deserialize(FieldsDescriptor fieldsDescriptor,
-                                       JSONObject dpou)
+  public static GPOMutable deserialize(FieldsDescriptor fieldsDescriptor, JSONObject dpou)
   {
     GPOMutable gpo = new GPOMutable(fieldsDescriptor);
     @SuppressWarnings("unchecked")
-    Iterator<String> itr = (Iterator<String>) dpou.keys();
+    Iterator<String> itr = (Iterator<String>)dpou.keys();
 
-    while(itr.hasNext()) {
+    while (itr.hasNext()) {
       String field = itr.next();
       setFieldFromJSON(gpo, field, dpou);
     }
 
     return gpo;
+  }
+
+  /**
+   * This method deserializes the fields in the given {@link FieldsDescriptor} into a map.
+   * @param fieldsDescriptor The {@link FieldsDescriptor} to fetch fields from.
+   * @param dpou The {@link JSONObject} which contains the fields whose values need to be fetched.
+   * @return A {@link Map} whose keys are field names, and whose values are possible values for those fields.
+   */
+  public static Map<String, Set<Object>> deserializeToMap(FieldsDescriptor fieldsDescriptor, JSONObject dpou)
+  {
+    Map<String, Set<Object>> keyToValues = Maps.newHashMap();
+
+    for (String key : fieldsDescriptor.getFields().getFields()) {
+      if (!dpou.has(key)) {
+        throw new IllegalArgumentException("The given key " + key + " is not contained in the given JSON");
+      }
+
+      Set<Object> keyValues;
+      Object keyValue;
+
+      try {
+        keyValue = dpou.get(key);
+      } catch (JSONException ex) {
+        throw new IllegalStateException("This should never happen", ex);
+      }
+
+      if (keyValue instanceof JSONArray) {
+
+        JSONArray ja = (JSONArray)keyValue;
+        keyValues = Sets.newHashSetWithExpectedSize(ja.length());
+
+        Type type = fieldsDescriptor.getType(key);
+
+        for (int index = 0; index < ja.length(); index++) {
+          keyValues.add(getFieldFromJSON(type, ja, index));
+        }
+
+      } else if (keyValue instanceof JSONObject) {
+        throw new UnsupportedOperationException("Cannot extract objects from JSONObjects");
+      } else {
+        keyValues = Sets.newHashSetWithExpectedSize(1);
+        keyValues.add(getFieldFromJSON(fieldsDescriptor, key, dpou));
+      }
+
+      keyToValues.put(key, keyValues);
+    }
+
+    return keyToValues;
   }
 
   /**
@@ -175,125 +225,70 @@ public class GPOUtils
    */
   public static void setFieldFromJSON(GPOMutable gpo, String field, JSONObject jo)
   {
-    Type type = gpo.getFieldDescriptor().getType(field);
+    Object val = getFieldFromJSON(gpo.getFieldDescriptor(), field, jo);
+    gpo.setFieldGeneric(field, val);
+  }
 
-    if(type == Type.BOOLEAN) {
-      Boolean val;
+  /**
+   * This method gets the given field from the given {@link JSONObject} and converts the field to an object
+   * of the type specified in the given {@link FieldsDescriptor}.
+   * @param fd The {@link FieldsDescriptor} describing the type of each field.
+   * @param field The field to retrieve from the given {@link JSONObject}.
+   * @param jo The {@link JSONObject} to retrieve a field from.
+   * @return The value of the given field converted to an object of the correct type.
+   */
+  public static Object getFieldFromJSON(FieldsDescriptor fd, String field, JSONObject jo)
+  {
+    Type type = fd.getType(field);
+    int intVal = 0;
 
+    if (numericTypeIntOrSmaller(type)) {
       try {
-        val = jo.getBoolean(field);
+        intVal = jo.getInt(field);
+      } catch (JSONException ex) {
+        throw new IllegalArgumentException("The key " + field + " does not have a valid " + type + " value.", ex);
       }
-      catch(JSONException ex) {
+
+      if (type != Type.INTEGER && !insideRange(type, intVal)) {
+        throw new IllegalArgumentException("The key " + field + " has a value " + intVal
+            + " which is out of range for a " + type + ".");
+      }
+    }
+
+    if (type == Type.BOOLEAN) {
+      try {
+        return jo.getBoolean(field);
+      } catch (JSONException ex) {
         throw new IllegalArgumentException("The key " + field + " does not have a valid bool value.", ex);
       }
-
-      gpo.setFieldGeneric(field, val);
-    }
-    else if(type == Type.BYTE) {
-      int val;
-
+    } else if (type == Type.BYTE) {
+      return ((byte)intVal);
+    } else if (type == Type.SHORT) {
+      return ((short)intVal);
+    } else if (type == Type.INTEGER) {
+      return intVal;
+    } else if (type == Type.LONG) {
       try {
-        val = jo.getInt(field);
-      }
-      catch(JSONException ex) {
-        throw new IllegalArgumentException("The key "
-                                           + field
-                                           + " does not have a valid byte value.", ex);
-      }
-
-      if(val < (int)Byte.MIN_VALUE) {
-        throw new IllegalArgumentException("The key "
-                                           + field
-                                           + " has a value "
-                                           + val
-                                           + " which is too small to fit into a byte.");
-      }
-
-      if(val > (int)Byte.MAX_VALUE) {
-        throw new IllegalArgumentException("The key "
-                                           + field
-                                           + " has a value "
-                                           + val
-                                           + " which is too larg to fit into a byte.");
-      }
-
-      gpo.setField(field, (byte)val);
-    }
-    else if(type == Type.SHORT) {
-      int val;
-
-      try {
-        val = jo.getInt(field);
-      }
-      catch(JSONException ex) {
-        throw new IllegalArgumentException("The key "
-                                           + field
-                                           + " does not have a valid short value.",
-                                           ex);
-      }
-
-      if(val < (int)Short.MIN_VALUE) {
-        throw new IllegalArgumentException("The key "
-                                           + field
-                                           + " has a value "
-                                           + val
-                                           + " which is too small to fit into a short.");
-      }
-
-      if(val > (int)Short.MAX_VALUE) {
-        throw new IllegalArgumentException("The key "
-                                           + field
-                                           + " has a value "
-                                           + val
-                                           + " which is too large to fit into a short.");
-      }
-
-      gpo.setField(field, (short)val);
-    }
-    else if(type == Type.INTEGER) {
-      int val;
-
-      try {
-        val = jo.getInt(field);
-      }
-      catch(JSONException ex) {
-        throw new IllegalArgumentException("The key "
-                                           + field
-                                           + " does not have a valid int value.",
-                                           ex);
-      }
-
-      gpo.setField(field, val);
-    }
-    else if(type == Type.LONG) {
-      long val;
-
-      try {
-        val = jo.getLong(field);
-      }
-      catch(JSONException ex) {
+        return jo.getLong(field);
+      } catch (JSONException ex) {
         throw new IllegalArgumentException("The key "
                                            + field
                                            + " does not have a valid long value.",
                                            ex);
       }
-
-      gpo.setField(field, val);
-    }
-    else if(type == Type.CHAR) {
+    } else if (type == Type.CHAR) {
       String val;
 
       try {
         val = jo.getString(field);
-      }
-      catch(JSONException ex) {
+      } catch (JSONException ex) {
         throw new IllegalArgumentException("The key "
                                            + field
                                            + " does not have a valid character value.",
                                            ex);
       }
 
-      if(val.length() != 1) {
+      if (val.length() != 1) {
         throw new IllegalArgumentException("The key "
                                            + field
                                            + " has a value "
@@ -301,52 +296,135 @@ public class GPOUtils
                                            + " that is not one character long.");
       }
 
-      gpo.setField(field, val.charAt(0));
-    }
-    else if(type == Type.STRING) {
-      String val;
-
+      return val.charAt(0);
+    } else if (type == Type.STRING) {
       try {
-        val = jo.getString(field);
-      }
-      catch(JSONException ex) {
+        return jo.getString(field);
+      } catch (JSONException ex) {
         throw new IllegalArgumentException("The key "
                                            + field
                                            + " does not have a valid string value.",
                                            ex);
       }
-
-      gpo.setField(field, val);
-    }
-    else if(type == Type.DOUBLE) {
-      Double val;
-
+    } else if (type == Type.DOUBLE) {
       try {
-        val = jo.getDouble(field);
-      }
-      catch(JSONException ex) {
+        return jo.getDouble(field);
+      } catch (JSONException ex) {
         throw new IllegalArgumentException("The key "
                                            + field
                                            + " does not have a valid double value.",
                                            ex);
       }
-
-      gpo.setFieldGeneric(field, val);
-    }
-    else if(type == Type.FLOAT) {
-      Float val;
-
+    } else if (type == Type.FLOAT) {
       try {
-        val = (float)jo.getDouble(field);
-      }
-      catch(JSONException ex) {
+        return (float)jo.getDouble(field);
+      } catch (JSONException ex) {
         throw new IllegalArgumentException("The key "
                                            + field
                                            + " does not have a valid double value.",
                                            ex);
       }
+    } else {
+      throw new UnsupportedOperationException("The type " + type + " is not supported.");
+    }
+  }
 
-      gpo.setFieldGeneric(field, val);
+  /**
+   * This method gets an object of the given {@link Type} from the given {@link JSONArray} at the
+   * given index.
+   * @param type The {@link Type} of the object to retrieve from the {@link JSONArray}.
+   * @param ja The {@link JSONArray} to retrieve objects from.
+   * @param index The index of the object in the {@link JSONArray} to retrieve.
+   * @return The object retrieved from the {@link JSONArray}.
+   */
+  public static Object getFieldFromJSON(Type type, JSONArray ja, int index)
+  {
+    int intVal = 0;
+
+    if (numericTypeIntOrSmaller(type)) {
+      try {
+        intVal = ja.getInt(index);
+      } catch (JSONException ex) {
+        throw new IllegalArgumentException("The index " + index + " does not have a valid " + type + " value.", ex);
+      }
+
+      if (type != Type.INTEGER && !insideRange(type, intVal)) {
+        throw new IllegalArgumentException("The index " + index + " has a value " + intVal
+            + " which is out of range for a " + type + ".");
+      }
+    }
+
+    if (type == Type.BOOLEAN) {
+      try {
+        return ja.getBoolean(index);
+      } catch (JSONException ex) {
+        throw new IllegalArgumentException("The index " + index + " does not have a valid bool value.", ex);
+      }
+    } else if (type == Type.BYTE) {
+      return ((byte)intVal);
+    } else if (type == Type.SHORT) {
+      return ((short)intVal);
+    } else if (type == Type.INTEGER) {
+      return intVal;
+    } else if (type == Type.LONG) {
+      try {
+        return ja.getLong(index);
+      } catch (JSONException ex) {
+        throw new IllegalArgumentException("The index "
+                                           + index
+                                           + " does not have a valid long value.",
+                                           ex);
+      }
+    } else if (type == Type.CHAR) {
+      String val;
+
+      try {
+        val = ja.getString(index);
+      } catch (JSONException ex) {
+        throw new IllegalArgumentException("The index "
+                                           + index
+                                           + " does not have a valid character value.",
+                                           ex);
+      }
+
+      if (val.length() != 1) {
+        throw new IllegalArgumentException("The index "
+                                           + index
+                                           + " has a value "
+                                           + val
+                                           + " that is not one character long.");
+      }
+
+      return val.charAt(0);
+    } else if (type == Type.STRING) {
+      try {
+        return ja.getString(index);
+      } catch (JSONException ex) {
+        throw new IllegalArgumentException("The index "
+                                           + index
+                                           + " does not have a valid string value.",
+                                           ex);
+      }
+    } else if (type == Type.DOUBLE) {
+      try {
+        return ja.getDouble(index);
+      } catch (JSONException ex) {
+        throw new IllegalArgumentException("The index "
+                                           + index
+                                           + " does not have a valid double value.",
+                                           ex);
+      }
+    } else if (type == Type.FLOAT) {
+      try {
+        return (float)ja.getDouble(index);
+      } catch (JSONException ex) {
+        throw new IllegalArgumentException("The index "
+                                           + index
+                                           + " does not have a valid double value.",
+                                           ex);
+      }
+    } else {
+      throw new UnsupportedOperationException("The type " + type + " is not supported.");
     }
   }
 
@@ -364,7 +442,7 @@ public class GPOUtils
     JSONObject jo = new JSONObject();
     FieldsDescriptor fd = gpo.getFieldDescriptor();
 
-    for(String field: fields.getFields()) {
+    for (String field : fields.getFields()) {
       Type fieldType = fd.getType(field);
       GPOType gpoType = GPOType.GPO_TYPE_ARRAY[fieldType.ordinal()];
       gpoType.serializeJSONObject(jo, gpo, field, resultFormatter);
@@ -398,14 +476,12 @@ public class GPOUtils
 
     List<Type> types = fd.getTypesList();
 
-    for(int typeIndex = 0;
-        typeIndex < types.size();
-        typeIndex++) {
+    for (int typeIndex = 0; typeIndex < types.size(); typeIndex++) {
       Type type = types.get(typeIndex);
 
-      switch(type) {
+      switch (type) {
         case STRING: {
-          for(String val: gpo.getFieldsString()) {
+          for (String val : gpo.getFieldsString()) {
             arrayLength += Type.INTEGER.getByteSize();
             arrayLength += val.getBytes().length;
           }
@@ -439,114 +515,76 @@ public class GPOUtils
     MutableInt offset = new MutableInt(0);
 
     boolean[] fieldsBoolean = gpo.getFieldsBoolean();
-    if(fieldsBoolean != null) {
-      for(int index = 0;
-          index < fieldsBoolean.length;
-          index++) {
-        serializeBoolean(fieldsBoolean[index],
-                         sbytes,
-                         offset);
+    if (fieldsBoolean != null) {
+      for (int index = 0; index < fieldsBoolean.length; index++) {
+        serializeBoolean(fieldsBoolean[index], sbytes, offset);
       }
     }
 
     char[] fieldsCharacter = gpo.getFieldsCharacter();
-    if(fieldsCharacter != null) {
-      for(int index = 0;
-          index < fieldsCharacter.length;
-          index++) {
-        serializeChar(fieldsCharacter[index],
-                      sbytes,
-                      offset);
+    if (fieldsCharacter != null) {
+      for (int index = 0; index < fieldsCharacter.length; index++) {
+        serializeChar(fieldsCharacter[index], sbytes, offset);
       }
     }
 
     byte[] fieldsByte = gpo.getFieldsByte();
-    if(fieldsByte != null) {
-      for(int index = 0;
-          index < fieldsByte.length;
-          index++) {
-        serializeByte(fieldsByte[index],
-                      sbytes,
-                      offset);
+    if (fieldsByte != null) {
+      for (int index = 0; index < fieldsByte.length; index++) {
+        serializeByte(fieldsByte[index], sbytes, offset);
       }
     }
 
     short[] fieldsShort = gpo.getFieldsShort();
-    if(fieldsShort != null) {
-      for(int index = 0;
-          index < fieldsShort.length;
-          index++) {
-        serializeShort(fieldsShort[index],
-                      sbytes,
-                      offset);
+    if (fieldsShort != null) {
+      for (int index = 0; index < fieldsShort.length; index++) {
+        serializeShort(fieldsShort[index], sbytes, offset);
       }
     }
 
     int[] fieldsInteger = gpo.getFieldsInteger();
-    if(fieldsInteger != null) {
-      for(int index = 0;
-          index < fieldsInteger.length;
-          index++) {
-        serializeInt(fieldsInteger[index],
-                      sbytes,
-                      offset);
+    if (fieldsInteger != null) {
+      for (int index = 0; index < fieldsInteger.length; index++) {
+        serializeInt(fieldsInteger[index], sbytes, offset);
       }
     }
 
     long[] fieldsLong = gpo.getFieldsLong();
-    if(fieldsLong != null) {
-      for(int index = 0;
-          index < fieldsLong.length;
-          index++) {
-        serializeLong(fieldsLong[index],
-                      sbytes,
-                      offset);
+    if (fieldsLong != null) {
+      for (int index = 0; index < fieldsLong.length; index++) {
+        serializeLong(fieldsLong[index], sbytes, offset);
       }
     }
 
     float[] fieldsFloat = gpo.getFieldsFloat();
-    if(fieldsFloat != null) {
-      for(int index = 0;
-          index < fieldsFloat.length;
-          index++) {
-        serializeFloat(fieldsFloat[index],
-                      sbytes,
-                      offset);
+    if (fieldsFloat != null) {
+      for (int index = 0; index < fieldsFloat.length; index++) {
+        serializeFloat(fieldsFloat[index], sbytes, offset);
       }
     }
 
     double[] fieldsDouble = gpo.getFieldsDouble();
-    if(fieldsDouble != null) {
-      for(int index = 0;
-          index < fieldsDouble.length;
-          index++) {
-        serializeDouble(fieldsDouble[index],
-                      sbytes,
-                      offset);
+    if (fieldsDouble != null) {
+      for (int index = 0; index < fieldsDouble.length; index++) {
+        serializeDouble(fieldsDouble[index], sbytes, offset);
       }
     }
 
     String[] fieldsString = gpo.getFieldsString();
-    if(fieldsString != null) {
-      for(int index = 0;
-          index < fieldsString.length;
-          index++) {
-        serializeString(fieldsString[index],
-                      sbytes,
-                      offset);
+    if (fieldsString != null) {
+      for (int index = 0; index < fieldsString.length; index++) {
+        serializeString(fieldsString[index], sbytes, offset);
       }
     }
 
-    if(sbytes.length > 0) {
+    if (sbytes.length > 0) {
       byteArrayList.add(sbytes);
     }
 
     Object[] fieldsObject = gpo.getFieldsObject();
     Serde[] serdes = gpo.getFieldDescriptor().getSerdes();
-    if(fieldsObject != null) {
-      for(int index = 0;
-          index < fieldsObject.length;
-          index++) {
+    if (fieldsObject != null) {
+      for (int index = 0; index < fieldsObject.length; index++) {
         byteArrayList.add(serdes[index].serializeObject(fieldsObject[index]));
       }
     }
@@ -571,8 +609,8 @@ public class GPOUtils
     Set<String> fields = gpo.getFieldDescriptor().getFields().getFields();
     Set<String> exFieldsSet = excludedFields.getFields();
 
-    for(String field: fields) {
-      if(exFieldsSet.contains(field)) {
+    for (String field : fields) {
+      if (exFieldsSet.contains(field)) {
         continue;
       }
 
@@ -593,99 +631,77 @@ public class GPOUtils
    * @param offset An offset in the byte array to start deserializing from.
    * @return The deserialized GPOMutable.
    */
-  public static GPOMutable deserialize(FieldsDescriptor fd,
-                                       byte[] serializedGPO,
-                                       MutableInt offset)
+  public static GPOMutable deserialize(FieldsDescriptor fd, byte[] serializedGPO, MutableInt offset)
   {
     GPOMutable gpo = new GPOMutable(fd);
 
     boolean[] fieldsBoolean = gpo.getFieldsBoolean();
-    if(fieldsBoolean != null) {
-      for(int index = 0;
-          index < fieldsBoolean.length;
-          index++) {
+    if (fieldsBoolean != null) {
+      for (int index = 0; index < fieldsBoolean.length; index++) {
         fieldsBoolean[index] = deserializeBoolean(serializedGPO, offset);
       }
     }
 
     char[] fieldsCharacter = gpo.getFieldsCharacter();
-    if(fieldsCharacter != null) {
-      for(int index = 0;
-          index < fieldsCharacter.length;
-          index++) {
+    if (fieldsCharacter != null) {
+      for (int index = 0; index < fieldsCharacter.length; index++) {
         fieldsCharacter[index] = deserializeChar(serializedGPO, offset);
       }
     }
 
     byte[] fieldsByte = gpo.getFieldsByte();
-    if(fieldsByte != null) {
-      for(int index = 0;
-          index < fieldsByte.length;
-          index++) {
+    if (fieldsByte != null) {
+      for (int index = 0; index < fieldsByte.length; index++) {
         fieldsByte[index] = deserializeByte(serializedGPO, offset);
       }
     }
 
     short[] fieldsShort = gpo.getFieldsShort();
-    if(fieldsShort != null) {
-      for(int index = 0;
-          index < fieldsShort.length;
-          index++) {
+    if (fieldsShort != null) {
+      for (int index = 0; index < fieldsShort.length; index++) {
         fieldsShort[index] = deserializeShort(serializedGPO, offset);
       }
     }
 
     int[] fieldsInteger = gpo.getFieldsInteger();
-    if(fieldsInteger != null) {
-      for(int index = 0;
-          index < fieldsInteger.length;
-          index++) {
+    if (fieldsInteger != null) {
+      for (int index = 0; index < fieldsInteger.length; index++) {
         fieldsInteger[index] = deserializeInt(serializedGPO, offset);
       }
     }
 
     long[] fieldsLong = gpo.getFieldsLong();
-    if(fieldsLong != null) {
-      for(int index = 0;
-          index < fieldsLong.length;
-          index++) {
+    if (fieldsLong != null) {
+      for (int index = 0; index < fieldsLong.length; index++) {
         fieldsLong[index] = deserializeLong(serializedGPO, offset);
       }
     }
 
     float[] fieldsFloat = gpo.getFieldsFloat();
-    if(fieldsFloat != null) {
-      for(int index = 0;
-          index < fieldsFloat.length;
-          index++) {
+    if (fieldsFloat != null) {
+      for (int index = 0; index < fieldsFloat.length; index++) {
         fieldsFloat[index] = deserializeFloat(serializedGPO, offset);
       }
     }
 
     double[] fieldsDouble = gpo.getFieldsDouble();
-    if(fieldsDouble != null) {
-      for(int index = 0;
-          index < fieldsDouble.length;
-          index++) {
+    if (fieldsDouble != null) {
+      for (int index = 0; index < fieldsDouble.length; index++) {
         fieldsDouble[index] = deserializeDouble(serializedGPO, offset);
       }
     }
 
     String[] fieldsString = gpo.getFieldsString();
-    if(fieldsString != null) {
-      for(int index = 0;
-          index < fieldsString.length;
-          index++) {
+    if (fieldsString != null) {
+      for (int index = 0; index < fieldsString.length; index++) {
         fieldsString[index] = deserializeString(serializedGPO, offset);
       }
     }
 
     Object[] fieldsObject = gpo.getFieldsObject();
     Serde[] serdes = fd.getSerdes();
-    if(fieldsObject != null) {
-      for(int index = 0;
-          index < fieldsObject.length;
-          index++) {
+    if (fieldsObject != null) {
+      for (int index = 0; index < fieldsObject.length; index++) {
         fieldsObject[index] = serdes[index].deserializeObject(serializedGPO, offset);
       }
     }
@@ -702,18 +718,16 @@ public class GPOUtils
    * @param offset The offset in the provided array to start deserializing from.
    * @return The deserialized {@link GPOMutable}.
    */
-  public static GPOMutable deserialize(FieldsDescriptor fieldsDescriptor,
-                                       Fields excludedFields,
-                                       byte[] serializedGPO,
-                                       int offset)
+  public static GPOMutable deserialize(FieldsDescriptor fieldsDescriptor, Fields excludedFields, byte[] serializedGPO,
+      int offset)
   {
     GPOMutable gpo = new GPOMutable(fieldsDescriptor);
     MutableInt offsetM = new MutableInt(offset);
 
     Set<String> exFieldsSet = excludedFields.getFields();
 
-    for(String field: fieldsDescriptor.getFields().getFields()) {
-      if(exFieldsSet.contains(field)) {
+    for (String field : fieldsDescriptor.getFields().getFields()) {
+      if (exFieldsSet.contains(field)) {
         continue;
       }
 
@@ -732,11 +746,9 @@ public class GPOUtils
    * @param offset The offset to deserialize from.
    * @return The deserialized string.
    */
-  public static String deserializeString(byte[] buffer,
-                                         MutableInt offset)
+  public static String deserializeString(byte[] buffer, MutableInt offset)
   {
-    int length = deserializeInt(buffer,
-                                offset);
+    int length = deserializeInt(buffer, offset);
 
     String val = new String(buffer, offset.intValue(), length);
     offset.add(length);
@@ -750,20 +762,14 @@ public class GPOUtils
    * @param buffer The byte buffer to serialize to.
    * @param offset The offset in the buffer to serialize to and also to increment appropriately.
    */
-  public static void serializeString(String val,
-                                     byte[] buffer,
-                                     MutableInt offset)
+  public static void serializeString(String val, byte[] buffer, MutableInt offset)
   {
     byte[] stringBytes = val.getBytes();
     int length = stringBytes.length;
 
-    serializeInt(length,
-                 buffer,
-                 offset);
+    serializeInt(length, buffer, offset);
 
-    for(int index = 0;
-        index < length;
-        index++) {
+    for (int index = 0; index < length; index++) {
       buffer[offset.intValue() + index] = stringBytes[index];
     }
 
@@ -790,18 +796,17 @@ public class GPOUtils
    * @param offset The offset to deserialize from.
    * @return The deserialized long.
    */
-  public static long deserializeLong(byte[] buffer,
-                                     MutableInt offset)
+  public static long deserializeLong(byte[] buffer, MutableInt offset)
   {
     int offsetInt = offset.intValue();
-    long val = ((((long) buffer[0 + offsetInt]) & 0xFFL) << 56) |
-           ((((long) buffer[1 + offsetInt]) & 0xFFL) << 48) |
-           ((((long) buffer[2 + offsetInt]) & 0xFFL) << 40) |
-           ((((long) buffer[3 + offsetInt]) & 0xFFL) << 32) |
-           ((((long) buffer[4 + offsetInt]) & 0xFFL) << 24) |
-           ((((long) buffer[5 + offsetInt]) & 0xFFL) << 16) |
-           ((((long) buffer[6 + offsetInt]) & 0xFFL) << 8)  |
-           (((long) buffer[7 + offsetInt]) & 0xFFL);
+    long val = ((((long)buffer[0 + offsetInt]) & 0xFFL) << 56) |
+        ((((long)buffer[1 + offsetInt]) & 0xFFL) << 48) |
+        ((((long)buffer[2 + offsetInt]) & 0xFFL) << 40) |
+        ((((long)buffer[3 + offsetInt]) & 0xFFL) << 32) |
+        ((((long)buffer[4 + offsetInt]) & 0xFFL) << 24) |
+        ((((long)buffer[5 + offsetInt]) & 0xFFL) << 16) |
+        ((((long)buffer[6 + offsetInt]) & 0xFFL) << 8) |
+        (((long)buffer[7 + offsetInt]) & 0xFFL);
 
     offset.add(Type.LONG.getByteSize());
     return val;
@@ -814,19 +819,17 @@ public class GPOUtils
    * @param buffer The byte buffer to serialize to.
    * @param offset The offset in the buffer to serialize to and also to increment appropriately.
    */
-  public static void serializeLong(long val,
-                                   byte[] buffer,
-                                   MutableInt offset)
+  public static void serializeLong(long val, byte[] buffer, MutableInt offset)
   {
     int offsetInt = offset.intValue();
-    buffer[0 + offsetInt] = (byte) ((val >> 56) & 0xFFL);
-    buffer[1 + offsetInt] = (byte) ((val >> 48) & 0xFFL);
-    buffer[2 + offsetInt] = (byte) ((val >> 40) & 0xFFL);
-    buffer[3 + offsetInt] = (byte) ((val >> 32) & 0xFFL);
-    buffer[4 + offsetInt] = (byte) ((val >> 24) & 0xFFL);
-    buffer[5 + offsetInt] = (byte) ((val >> 16) & 0xFFL);
-    buffer[6 + offsetInt] = (byte) ((val >> 8) & 0xFFL);
-    buffer[7 + offsetInt] = (byte) (val & 0xFFL);
+    buffer[0 + offsetInt] = (byte)((val >> 56) & 0xFFL);
+    buffer[1 + offsetInt] = (byte)((val >> 48) & 0xFFL);
+    buffer[2 + offsetInt] = (byte)((val >> 40) & 0xFFL);
+    buffer[3 + offsetInt] = (byte)((val >> 32) & 0xFFL);
+    buffer[4 + offsetInt] = (byte)((val >> 24) & 0xFFL);
+    buffer[5 + offsetInt] = (byte)((val >> 16) & 0xFFL);
+    buffer[6 + offsetInt] = (byte)((val >> 8) & 0xFFL);
+    buffer[7 + offsetInt] = (byte)(val & 0xFFL);
 
     offset.add(Type.LONG.getByteSize());
   }
@@ -840,14 +843,14 @@ public class GPOUtils
   {
     byte[] buffer = new byte[Type.LONG.getByteSize()];
 
-    buffer[0] = (byte) ((val >> 56) & 0xFFL);
-    buffer[1] = (byte) ((val >> 48) & 0xFFL);
-    buffer[2] = (byte) ((val >> 40) & 0xFFL);
-    buffer[3] = (byte) ((val >> 32) & 0xFFL);
-    buffer[4] = (byte) ((val >> 24) & 0xFFL);
-    buffer[5] = (byte) ((val >> 16) & 0xFFL);
-    buffer[6] = (byte) ((val >> 8) & 0xFFL);
-    buffer[7] = (byte) (val & 0xFFL);
+    buffer[0] = (byte)((val >> 56) & 0xFFL);
+    buffer[1] = (byte)((val >> 48) & 0xFFL);
+    buffer[2] = (byte)((val >> 40) & 0xFFL);
+    buffer[3] = (byte)((val >> 32) & 0xFFL);
+    buffer[4] = (byte)((val >> 24) & 0xFFL);
+    buffer[5] = (byte)((val >> 16) & 0xFFL);
+    buffer[6] = (byte)((val >> 8) & 0xFFL);
+    buffer[7] = (byte)(val & 0xFFL);
 
     return buffer;
   }
@@ -870,18 +873,17 @@ public class GPOUtils
    * @param offset The offset to deserialize from.
    * @return The deserialized double.
    */
-  public static double deserializeDouble(byte[] buffer,
-                                       MutableInt offset)
+  public static double deserializeDouble(byte[] buffer, MutableInt offset)
   {
     int offsetInt = offset.intValue();
-    long val = (((long) buffer[0 + offsetInt]) & 0xFFL) << 56 |
-           ((((long) buffer[1 + offsetInt]) & 0xFFL) << 48) |
-           ((((long) buffer[2 + offsetInt]) & 0xFFL) << 40) |
-           ((((long) buffer[3 + offsetInt]) & 0xFFL) << 32) |
-           ((((long) buffer[4 + offsetInt]) & 0xFFL) << 24) |
-           ((((long) buffer[5 + offsetInt]) & 0xFFL) << 16) |
-           ((((long) buffer[6 + offsetInt]) & 0xFFL) << 8)  |
-           (((long) buffer[7 + offsetInt]) & 0xFFL);
+    long val = (((long)buffer[0 + offsetInt]) & 0xFFL) << 56 |
+        ((((long)buffer[1 + offsetInt]) & 0xFFL) << 48) |
+        ((((long)buffer[2 + offsetInt]) & 0xFFL) << 40) |
+        ((((long)buffer[3 + offsetInt]) & 0xFFL) << 32) |
+        ((((long)buffer[4 + offsetInt]) & 0xFFL) << 24) |
+        ((((long)buffer[5 + offsetInt]) & 0xFFL) << 16) |
+        ((((long)buffer[6 + offsetInt]) & 0xFFL) << 8) |
+        (((long)buffer[7 + offsetInt]) & 0xFFL);
 
     offset.add(Type.DOUBLE.getByteSize());
     return Double.longBitsToDouble(val);
@@ -894,21 +896,19 @@ public class GPOUtils
    * @param buffer The byte buffer to serialize to.
    * @param offset The offset in the buffer to serialize to and also to increment appropriately.
    */
-  public static void serializeDouble(double valD,
-                                   byte[] buffer,
-                                   MutableInt offset)
+  public static void serializeDouble(double valD, byte[] buffer, MutableInt offset)
   {
     long val = Double.doubleToLongBits(valD);
 
     int offsetInt = offset.intValue();
-    buffer[0 + offsetInt] = (byte) ((val >> 56) & 0xFFL);
-    buffer[1 + offsetInt] = (byte) ((val >> 48) & 0xFFL);
-    buffer[2 + offsetInt] = (byte) ((val >> 40) & 0xFFL);
-    buffer[3 + offsetInt] = (byte) ((val >> 32) & 0xFFL);
-    buffer[4 + offsetInt] = (byte) ((val >> 24) & 0xFFL);
-    buffer[5 + offsetInt] = (byte) ((val >> 16) & 0xFFL);
-    buffer[6 + offsetInt] = (byte) ((val >> 8) & 0xFFL);
-    buffer[7 + offsetInt] = (byte) (val & 0xFFL);
+    buffer[0 + offsetInt] = (byte)((val >> 56) & 0xFFL);
+    buffer[1 + offsetInt] = (byte)((val >> 48) & 0xFFL);
+    buffer[2 + offsetInt] = (byte)((val >> 40) & 0xFFL);
+    buffer[3 + offsetInt] = (byte)((val >> 32) & 0xFFL);
+    buffer[4 + offsetInt] = (byte)((val >> 24) & 0xFFL);
+    buffer[5 + offsetInt] = (byte)((val >> 16) & 0xFFL);
+    buffer[6 + offsetInt] = (byte)((val >> 8) & 0xFFL);
+    buffer[7 + offsetInt] = (byte)(val & 0xFFL);
 
     offset.add(Type.DOUBLE.getByteSize());
   }
@@ -918,14 +918,14 @@ public class GPOUtils
     byte[] buffer = new byte[Type.DOUBLE.getByteSize()];
     long val = Double.doubleToLongBits(valD);
 
-    buffer[0] = (byte) ((val >> 56) & 0xFFL);
-    buffer[1] = (byte) ((val >> 48) & 0xFFL);
-    buffer[2] = (byte) ((val >> 40) & 0xFFL);
-    buffer[3] = (byte) ((val >> 32) & 0xFFL);
-    buffer[4] = (byte) ((val >> 24) & 0xFFL);
-    buffer[5] = (byte) ((val >> 16) & 0xFFL);
-    buffer[6] = (byte) ((val >> 8) & 0xFFL);
-    buffer[7] = (byte) (val & 0xFFL);
+    buffer[0] = (byte)((val >> 56) & 0xFFL);
+    buffer[1] = (byte)((val >> 48) & 0xFFL);
+    buffer[2] = (byte)((val >> 40) & 0xFFL);
+    buffer[3] = (byte)((val >> 32) & 0xFFL);
+    buffer[4] = (byte)((val >> 24) & 0xFFL);
+    buffer[5] = (byte)((val >> 16) & 0xFFL);
+    buffer[6] = (byte)((val >> 8) & 0xFFL);
+    buffer[7] = (byte)(val & 0xFFL);
 
     return buffer;
   }
@@ -937,14 +937,13 @@ public class GPOUtils
    * @param offset The offset to deserialize from.
    * @return The deserialized integer.
    */
-  public static int deserializeInt(byte[] buffer,
-                                   MutableInt offset)
+  public static int deserializeInt(byte[] buffer, MutableInt offset)
   {
     int offsetInt = offset.intValue();
-    int val = ((((int) buffer[0 + offsetInt]) & 0xFF) << 24) |
-           ((((int) buffer[1 + offsetInt]) & 0xFF) << 16) |
-           ((((int) buffer[2 + offsetInt]) & 0xFF) << 8)  |
-           (((int) buffer[3 + offsetInt]) & 0xFF);
+    int val = ((((int)buffer[0 + offsetInt]) & 0xFF) << 24) |
+        ((((int)buffer[1 + offsetInt]) & 0xFF) << 16) |
+        ((((int)buffer[2 + offsetInt]) & 0xFF) << 8) |
+        (((int)buffer[3 + offsetInt]) & 0xFF);
 
     offset.add(Type.INTEGER.getByteSize());
     return val;
@@ -968,15 +967,13 @@ public class GPOUtils
    * @param buffer The byte buffer to serialize to.
    * @param offset The offset in the buffer to serialize to and also to increment appropriately.
    */
-  public static void serializeInt(int val,
-                                  byte[] buffer,
-                                  MutableInt offset)
+  public static void serializeInt(int val, byte[] buffer, MutableInt offset)
   {
     int offsetInt = offset.intValue();
-    buffer[0 + offsetInt] = (byte) ((val >> 24) & 0xFF);
-    buffer[1 + offsetInt] = (byte) ((val >> 16) & 0xFF);
-    buffer[2 + offsetInt] = (byte) ((val >> 8) & 0xFF);
-    buffer[3 + offsetInt] = (byte) (val & 0xFF);
+    buffer[0 + offsetInt] = (byte)((val >> 24) & 0xFF);
+    buffer[1 + offsetInt] = (byte)((val >> 16) & 0xFF);
+    buffer[2 + offsetInt] = (byte)((val >> 8) & 0xFF);
+    buffer[3 + offsetInt] = (byte)(val & 0xFF);
 
     offset.add(Type.INTEGER.getByteSize());
   }
@@ -986,13 +983,14 @@ public class GPOUtils
    * @param val The value to serialize.
    * @return The serialized integer value.
    */
-  public static byte[] serializeInt(int val) {
+  public static byte[] serializeInt(int val)
+  {
     byte[] buffer = new byte[Type.INTEGER.getByteSize()];
 
-    buffer[0] = (byte) ((val >> 24) & 0xFF);
-    buffer[1] = (byte) ((val >> 16) & 0xFF);
-    buffer[2] = (byte) ((val >> 8) & 0xFF);
-    buffer[3] = (byte) (val & 0xFF);
+    buffer[0] = (byte)((val >> 24) & 0xFF);
+    buffer[1] = (byte)((val >> 16) & 0xFF);
+    buffer[2] = (byte)((val >> 8) & 0xFF);
+    buffer[3] = (byte)(val & 0xFF);
 
     return buffer;
   }
@@ -1004,14 +1002,13 @@ public class GPOUtils
    * @param offset The offset to deserialize from.
    * @return The deserialized float.
    */
-  public static float deserializeFloat(byte[] buffer,
-                                   MutableInt offset)
+  public static float deserializeFloat(byte[] buffer, MutableInt offset)
   {
     int offsetInt = offset.intValue();
-    int val = ((((int) buffer[0 + offsetInt]) & 0xFF) << 24) |
-           ((((int) buffer[1 + offsetInt]) & 0xFF) << 16) |
-           ((((int) buffer[2 + offsetInt]) & 0xFF) << 8)  |
-           (((int) buffer[3 + offsetInt]) & 0xFF);
+    int val = ((((int)buffer[0 + offsetInt]) & 0xFF) << 24) |
+        ((((int)buffer[1 + offsetInt]) & 0xFF) << 16) |
+        ((((int)buffer[2 + offsetInt]) & 0xFF) << 8) |
+        (((int)buffer[3 + offsetInt]) & 0xFF);
 
     offset.add(Type.FLOAT.getByteSize());
     return Float.intBitsToFloat(val);
@@ -1024,17 +1021,15 @@ public class GPOUtils
    * @param buffer The byte buffer to serialize to.
    * @param offset The offset in the buffer to serialize to and also to increment appropriately.
    */
-  public static void serializeFloat(float valf,
-                                  byte[] buffer,
-                                  MutableInt offset)
+  public static void serializeFloat(float valf, byte[] buffer, MutableInt offset)
   {
     int offsetInt = offset.intValue();
     int val = Float.floatToIntBits(valf);
 
-    buffer[0 + offsetInt] = (byte) ((val >> 24) & 0xFF);
-    buffer[1 + offsetInt] = (byte) ((val >> 16) & 0xFF);
-    buffer[2 + offsetInt] = (byte) ((val >> 8) & 0xFF);
-    buffer[3 + offsetInt] = (byte) (val & 0xFF);
+    buffer[0 + offsetInt] = (byte)((val >> 24) & 0xFF);
+    buffer[1 + offsetInt] = (byte)((val >> 16) & 0xFF);
+    buffer[2 + offsetInt] = (byte)((val >> 8) & 0xFF);
+    buffer[3 + offsetInt] = (byte)(val & 0xFF);
 
     offset.add(Type.FLOAT.getByteSize());
   }
@@ -1044,10 +1039,10 @@ public class GPOUtils
     byte[] buffer = new byte[Type.FLOAT.getByteSize()];
     int val = Float.floatToIntBits(valf);
 
-    buffer[0] = (byte) ((val >> 24) & 0xFF);
-    buffer[1] = (byte) ((val >> 16) & 0xFF);
-    buffer[2] = (byte) ((val >> 8) & 0xFF);
-    buffer[3] = (byte) (val & 0xFF);
+    buffer[0] = (byte)((val >> 24) & 0xFF);
+    buffer[1] = (byte)((val >> 16) & 0xFF);
+    buffer[2] = (byte)((val >> 8) & 0xFF);
+    buffer[3] = (byte)(val & 0xFF);
 
     return buffer;
   }
@@ -1059,12 +1054,11 @@ public class GPOUtils
    * @param offset The offset to deserialize from.
    * @return The deserialized short.
    */
-  public static short deserializeShort(byte[] buffer,
-                                       MutableInt offset)
+  public static short deserializeShort(byte[] buffer, MutableInt offset)
   {
     int offsetInt = offset.intValue();
-    short val = (short) (((((int) buffer[0 + offsetInt]) & 0xFF) << 8)  |
-                (((int) buffer[1 + offsetInt]) & 0xFF));
+    short val = (short)(((((int)buffer[0 + offsetInt]) & 0xFF) << 8) |
+        (((int)buffer[1 + offsetInt]) & 0xFF));
 
     offset.add(Type.SHORT.getByteSize());
     return val;
@@ -1077,13 +1071,11 @@ public class GPOUtils
    * @param buffer The byte buffer to serialize to.
    * @param offset The offset in the buffer to serialize to and also to increment appropriately.
    */
-  public static void serializeShort(short val,
-                                    byte[] buffer,
-                                    MutableInt offset)
+  public static void serializeShort(short val, byte[] buffer, MutableInt offset)
   {
     int offsetInt = offset.intValue();
-    buffer[0 + offsetInt] = (byte) ((val >> 8) & 0xFF);
-    buffer[1 + offsetInt] = (byte) (val & 0xFF);
+    buffer[0 + offsetInt] = (byte)((val >> 8) & 0xFF);
+    buffer[1 + offsetInt] = (byte)(val & 0xFF);
 
     offset.add(Type.SHORT.getByteSize());
   }
@@ -1092,8 +1084,8 @@ public class GPOUtils
   {
     byte[] buffer = new byte[Type.SHORT.getByteSize()];
 
-    buffer[0] = (byte) ((val >> 8) & 0xFF);
-    buffer[1] = (byte) (val & 0xFF);
+    buffer[0] = (byte)((val >> 8) & 0xFF);
+    buffer[1] = (byte)(val & 0xFF);
 
     return buffer;
   }
@@ -1105,8 +1097,7 @@ public class GPOUtils
    * @param offset The offset to deserialize from.
    * @return The deserialized byte.
    */
-  public static byte deserializeByte(byte[] buffer,
-                                     MutableInt offset)
+  public static byte deserializeByte(byte[] buffer, MutableInt offset)
   {
     byte val = buffer[offset.intValue()];
 
@@ -1122,9 +1113,7 @@ public class GPOUtils
    * @param buffer The byte buffer to serialize to.
    * @param offset The offset in the buffer to serialize to and also to increment appropriately.
    */
-  public static void serializeByte(byte val,
-                                   byte[] buffer,
-                                   MutableInt offset)
+  public static void serializeByte(byte val, byte[] buffer, MutableInt offset)
   {
     buffer[offset.intValue()] = val;
 
@@ -1143,8 +1132,7 @@ public class GPOUtils
    * @param offset The offset to deserialize from.
    * @return The deserialized boolean.
    */
-  public static boolean deserializeBoolean(byte[] buffer,
-                                           MutableInt offset)
+  public static boolean deserializeBoolean(byte[] buffer, MutableInt offset)
   {
     boolean val = buffer[offset.intValue()] != 0;
 
@@ -1159,18 +1147,16 @@ public class GPOUtils
    * @param buffer The byte buffer to serialize to.
    * @param offset The offset in the buffer to serialize to and also to increment appropriately.
    */
-  public static void serializeBoolean(boolean val,
-                                      byte[] buffer,
-                                      MutableInt offset)
+  public static void serializeBoolean(boolean val, byte[] buffer, MutableInt offset)
   {
-    buffer[offset.intValue()] = (byte) (val ? 1: 0);
+    buffer[offset.intValue()] = (byte)(val ? 1 : 0);
 
     offset.add(Type.BOOLEAN.getByteSize());
   }
 
   public static byte[] serializeBoolean(boolean val)
   {
-    return new byte[]{(byte) (val ? 1: 0)};
+    return new byte[]{(byte)(val ? 1 : 0)};
   }
 
   /**
@@ -1180,12 +1166,11 @@ public class GPOUtils
    * @param offset The offset to deserialize from.
    * @return The deserialized character.
    */
-  public static char deserializeChar(byte[] buffer,
-                                     MutableInt offset)
+  public static char deserializeChar(byte[] buffer, MutableInt offset)
   {
     int offsetInt = offset.intValue();
-    char val = (char) (((((int) buffer[0 + offsetInt]) & 0xFF) << 8)  |
-                (((int) buffer[1 + offsetInt]) & 0xFF));
+    char val = (char)(((((int)buffer[0 + offsetInt]) & 0xFF) << 8) |
+        (((int)buffer[1 + offsetInt]) & 0xFF));
 
     offset.add(Type.CHAR.getByteSize());
     return val;
@@ -1198,13 +1183,11 @@ public class GPOUtils
    * @param buffer The byte buffer to serialize to.
    * @param offset The offset in the buffer to serialize to and also to increment appropriately.
    */
-  public static void serializeChar(char val,
-                                   byte[] buffer,
-                                   MutableInt offset)
+  public static void serializeChar(char val, byte[] buffer, MutableInt offset)
   {
     int offsetInt = offset.intValue();
-    buffer[0 + offsetInt] = (byte) ((val >> 8) & 0xFF);
-    buffer[1 + offsetInt] = (byte) (val & 0xFF);
+    buffer[0 + offsetInt] = (byte)((val >> 8) & 0xFF);
+    buffer[1 + offsetInt] = (byte)(val & 0xFF);
 
     offset.add(Type.CHAR.getByteSize());
   }
@@ -1213,8 +1196,8 @@ public class GPOUtils
   {
     byte[] buffer = new byte[Type.CHAR.getByteSize()];
 
-    buffer[0] = (byte) ((val >> 8) & 0xFF);
-    buffer[1] = (byte) (val & 0xFF);
+    buffer[0] = (byte)((val >> 8) & 0xFF);
+    buffer[1] = (byte)(val & 0xFF);
 
     return buffer;
   }
@@ -1232,20 +1215,15 @@ public class GPOUtils
    * @return An array of boolean getters for given fields.
    */
   @SuppressWarnings("unchecked")
-  public static <T> T[] createGetters(List<String> fields,
-                                      Map<String, String> valueToExpression,
-                                      Class<?> clazz,
-                                      Class<?> getterClazz,
-                                      Class<?> getterMethodClazz)
+  public static <T> T[] createGetters(List<String> fields, Map<String, String> valueToExpression,
+      Class<?> clazz, Class<?> getterClazz, Class<?> getterMethodClazz)
   {
     @SuppressWarnings("unchecked")
     T[] getters = (T[])Array.newInstance(getterMethodClazz, fields.size());
 
-    for(int getterIndex = 0;
-        getterIndex < fields.size();
-        getterIndex++) {
+    for (int getterIndex = 0; getterIndex < fields.size(); getterIndex++) {
       String field = fields.get(getterIndex);
-      getters[getterIndex] = (T) PojoUtils.constructGetter(clazz, valueToExpression.get(field), getterClazz);
+      getters[getterIndex] = (T)PojoUtils.constructGetter(clazz, valueToExpression.get(field), getterClazz);
     }
 
     return getters;
@@ -1261,16 +1239,13 @@ public class GPOUtils
    * @param clazz The Class of the POJO to extract values from.
    * @return An array of boolean getters for given fields.
    */
-  public static Getter<Object, String>[] createGettersString(List<String> fields,
-                                                             Map<String, String> valueToExpression,
-                                                             Class<?> clazz)
+  public static Getter<Object, String>[] createGettersString(List<String> fields, Map<String, String> valueToExpression,
+      Class<?> clazz)
   {
     @SuppressWarnings({"unchecked","rawtypes"})
     Getter<Object, String>[] getters = new Getter[fields.size()];
 
-    for(int getterIndex = 0;
-        getterIndex < fields.size();
-        getterIndex++) {
+    for (int getterIndex = 0; getterIndex < fields.size(); getterIndex++) {
       String field = fields.get(getterIndex);
       getters[getterIndex] = PojoUtils.createGetter(clazz, valueToExpression.get(field), String.class);
     }
@@ -1288,16 +1263,13 @@ public class GPOUtils
    * @param clazz The Class of the POJO to extract values from.
    * @return An array of boolean getters for given fields.
    */
-  public static Getter<Object, Object>[] createGettersObject(List<String> fields,
-                                                             Map<String, String> valueToExpression,
-                                                             Class<?> clazz)
+  public static Getter<Object, Object>[] createGettersObject(List<String> fields, Map<String, String> valueToExpression,
+      Class<?> clazz)
   {
     @SuppressWarnings({"unchecked","rawtypes"})
     Getter<Object, Object>[] getters = new Getter[fields.size()];
 
-    for(int getterIndex = 0;
-        getterIndex < fields.size();
-        getterIndex++) {
+    for (int getterIndex = 0; getterIndex < fields.size(); getterIndex++) {
       String field = fields.get(getterIndex);
       getters[getterIndex] = PojoUtils.createGetter(clazz, valueToExpression.get(field), Object.class);
     }
@@ -1315,14 +1287,13 @@ public class GPOUtils
    * @return The {@link GPOGetters} object which can be used to convert POJOs into {@link GPOMutable} objects initialized
    * with the same {@link FieldsDescriptor} object.
    */
-  public static GPOGetters buildGPOGetters(Map<String, String> fieldToGetter,
-                                           FieldsDescriptor fieldsDescriptor,
-                                           Class<?> clazz)
+  public static GPOGetters buildGPOGetters(Map<String, String> fieldToGetter, FieldsDescriptor fieldsDescriptor,
+      Class<?> clazz)
   {
     GPOGetters gpoGetters = new GPOGetters();
     Map<Type, List<String>> typeToFields = fieldsDescriptor.getTypeToFields();
 
-    for(Map.Entry<Type, List<String>> entry: typeToFields.entrySet()) {
+    for (Map.Entry<Type, List<String>> entry : typeToFields.entrySet()) {
       Type inputType = entry.getKey();
       GPOType gpoType = GPOType.GPO_TYPE_ARRAY[inputType.ordinal()];
       List<String> fields = entry.getValue();
@@ -1348,10 +1319,8 @@ public class GPOUtils
       boolean[] tempBools = mutable.getFieldsBoolean();
       GetterBoolean<Object>[] tempGetterBools = getters.gettersBoolean;
 
-      if(tempBools != null) {
-        for(int index = 0;
-            index < tempBools.length;
-            index++) {
+      if (tempBools != null) {
+        for (int index = 0; index < tempBools.length; index++) {
           tempBools[index] = tempGetterBools[index].get(object);
         }
       }
@@ -1361,10 +1330,8 @@ public class GPOUtils
       byte[] tempBytes = mutable.getFieldsByte();
       GetterByte<Object>[] tempGetterByte = getters.gettersByte;
 
-      if(tempBytes != null) {
-        for(int index = 0;
-            index < tempBytes.length;
-            index++) {
+      if (tempBytes != null) {
+        for (int index = 0; index < tempBytes.length; index++) {
           tempBytes[index] = tempGetterByte[index].get(object);
         }
       }
@@ -1374,10 +1341,8 @@ public class GPOUtils
       char[] tempChar = mutable.getFieldsCharacter();
       GetterChar<Object>[] tempGetterChar = getters.gettersChar;
 
-      if(tempChar != null) {
-        for(int index = 0;
-            index < tempChar.length;
-            index++) {
+      if (tempChar != null) {
+        for (int index = 0; index < tempChar.length; index++) {
           tempChar[index] = tempGetterChar[index].get(object);
         }
       }
@@ -1387,10 +1352,8 @@ public class GPOUtils
       double[] tempDouble = mutable.getFieldsDouble();
       GetterDouble<Object>[] tempGetterDouble = getters.gettersDouble;
 
-      if(tempDouble != null) {
-        for(int index = 0;
-            index < tempDouble.length;
-            index++) {
+      if (tempDouble != null) {
+        for (int index = 0; index < tempDouble.length; index++) {
           tempDouble[index] = tempGetterDouble[index].get(object);
         }
       }
@@ -1400,10 +1363,8 @@ public class GPOUtils
       float[] tempFloat = mutable.getFieldsFloat();
       GetterFloat<Object>[] tempGetterFloat = getters.gettersFloat;
 
-      if(tempFloat != null) {
-        for(int index = 0;
-            index < tempFloat.length;
-            index++) {
+      if (tempFloat != null) {
+        for (int index = 0; index < tempFloat.length; index++) {
           tempFloat[index] = tempGetterFloat[index].get(object);
         }
       }
@@ -1413,10 +1374,8 @@ public class GPOUtils
       int[] tempInt = mutable.getFieldsInteger();
       GetterInt<Object>[] tempGetterInt = getters.gettersInteger;
 
-      if(tempInt != null) {
-        for(int index = 0;
-            index < tempInt.length;
-            index++) {
+      if (tempInt != null) {
+        for (int index = 0; index < tempInt.length; index++) {
           tempInt[index] = tempGetterInt[index].get(object);
         }
       }
@@ -1426,10 +1385,8 @@ public class GPOUtils
       long[] tempLong = mutable.getFieldsLong();
       GetterLong<Object>[] tempGetterLong = getters.gettersLong;
 
-      if(tempLong != null) {
-        for(int index = 0;
-            index < tempLong.length;
-            index++) {
+      if (tempLong != null) {
+        for (int index = 0; index < tempLong.length; index++) {
           tempLong[index] = tempGetterLong[index].get(object);
         }
       }
@@ -1439,10 +1396,8 @@ public class GPOUtils
       short[] tempShort = mutable.getFieldsShort();
       GetterShort<Object>[] tempGetterShort = getters.gettersShort;
 
-      if(tempShort != null) {
-        for(int index = 0;
-            index < tempShort.length;
-            index++) {
+      if (tempShort != null) {
+        for (int index = 0; index < tempShort.length; index++) {
           tempShort[index] = tempGetterShort[index].get(object);
         }
       }
@@ -1452,29 +1407,23 @@ public class GPOUtils
       String[] tempString = mutable.getFieldsString();
       Getter<Object, String>[] tempGetterString = getters.gettersString;
 
-      if(tempString != null) {
-        for(int index = 0;
-            index < tempString.length;
-            index++) {
+      if (tempString != null) {
+        for (int index = 0; index < tempString.length; index++) {
           tempString[index] = tempGetterString[index].get(object);
         }
       }
     }
   }
 
-  public static void indirectCopy(GPOMutable dest,
-                                  GPOMutable src,
-                                  IndexSubset indexSubset)
+  public static void indirectCopy(GPOMutable dest, GPOMutable src, IndexSubset indexSubset)
   {
     {
       String[] destString = dest.getFieldsString();
       String[] srcString = src.getFieldsString();
       int[] srcIndex = indexSubset.fieldsStringIndexSubset;
-      if(destString != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (destString != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
           destString[index] = srcString[srcIndex[index]];
@@ -1486,11 +1435,9 @@ public class GPOUtils
       boolean[] destBoolean = dest.getFieldsBoolean();
       boolean[] srcBoolean = src.getFieldsBoolean();
       int[] srcIndex = indexSubset.fieldsBooleanIndexSubset;
-      if(destBoolean != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (destBoolean != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
           destBoolean[index] = srcBoolean[srcIndex[index]];
@@ -1502,11 +1449,9 @@ public class GPOUtils
       char[] destChar = dest.getFieldsCharacter();
       char[] srcChar = src.getFieldsCharacter();
       int[] srcIndex = indexSubset.fieldsBooleanIndexSubset;
-      if(destChar != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (destChar != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
           destChar[index] = srcChar[srcIndex[index]];
@@ -1518,11 +1463,9 @@ public class GPOUtils
       byte[] destByte = dest.getFieldsByte();
       byte[] srcByte = src.getFieldsByte();
       int[] srcIndex = indexSubset.fieldsByteIndexSubset;
-      if(destByte != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (destByte != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
           destByte[index] = srcByte[srcIndex[index]];
@@ -1534,11 +1477,9 @@ public class GPOUtils
       short[] destShort = dest.getFieldsShort();
       short[] srcShort = src.getFieldsShort();
       int[] srcIndex = indexSubset.fieldsShortIndexSubset;
-      if(destShort != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (destShort != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
           destShort[index] = srcShort[srcIndex[index]];
@@ -1550,11 +1491,9 @@ public class GPOUtils
       int[] destInteger = dest.getFieldsInteger();
       int[] srcInteger = src.getFieldsInteger();
       int[] srcIndex = indexSubset.fieldsIntegerIndexSubset;
-      if(destInteger != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (destInteger != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
           destInteger[index] = srcInteger[srcIndex[index]];
@@ -1566,11 +1505,9 @@ public class GPOUtils
       long[] destLong = dest.getFieldsLong();
       long[] srcLong = src.getFieldsLong();
       int[] srcIndex = indexSubset.fieldsLongIndexSubset;
-      if(destLong != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (destLong != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
 
@@ -1583,11 +1520,9 @@ public class GPOUtils
       float[] destFloat = dest.getFieldsFloat();
       float[] srcFloat = src.getFieldsFloat();
       int[] srcIndex = indexSubset.fieldsFloatIndexSubset;
-      if(destFloat != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (destFloat != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
           destFloat[index] = srcFloat[srcIndex[index]];
@@ -1599,11 +1534,9 @@ public class GPOUtils
       double[] destDouble = dest.getFieldsDouble();
       double[] srcDouble = src.getFieldsDouble();
       int[] srcIndex = indexSubset.fieldsDoubleIndexSubset;
-      if(destDouble != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (destDouble != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
           destDouble[index] = srcDouble[srcIndex[index]];
@@ -1615,11 +1548,9 @@ public class GPOUtils
       Object[] destObject = dest.getFieldsObject();
       Object[] srcObject = src.getFieldsObject();
       int[] srcIndex = indexSubset.fieldsObjectIndexSubset;
-      if(destObject != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (destObject != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
           destObject[index] = srcObject[srcIndex[index]];
@@ -1634,10 +1565,8 @@ public class GPOUtils
 
     {
       String[] stringArray = gpo.getFieldsString();
-      if(stringArray != null) {
-        for(int index = 0;
-            index < stringArray.length;
-            index++) {
+      if (stringArray != null) {
+        for (int index = 0; index < stringArray.length; index++) {
           hashCode ^= stringArray[index].hashCode();
         }
       }
@@ -1645,21 +1574,17 @@ public class GPOUtils
 
     {
       boolean[] booleanArray = gpo.getFieldsBoolean();
-      if(booleanArray != null) {
-        for(int index = 0;
-            index < booleanArray.length;
-            index++) {
-          hashCode ^= booleanArray[index] ? 1: 0;
+      if (booleanArray != null) {
+        for (int index = 0; index < booleanArray.length; index++) {
+          hashCode ^= booleanArray[index] ? 1 : 0;
         }
       }
     }
 
     {
       char[] charArray = gpo.getFieldsCharacter();
-      if(charArray != null) {
-        for(int index = 0;
-            index < charArray.length;
-            index++) {
+      if (charArray != null) {
+        for (int index = 0; index < charArray.length; index++) {
           hashCode ^= Character.getNumericValue(charArray[index]);
         }
       }
@@ -1667,10 +1592,8 @@ public class GPOUtils
 
     {
       byte[] byteArray = gpo.getFieldsByte();
-      if(byteArray != null) {
-        for(int index = 0;
-            index < byteArray.length;
-            index++) {
+      if (byteArray != null) {
+        for (int index = 0; index < byteArray.length; index++) {
           hashCode ^= byteArray[index];
         }
       }
@@ -1678,10 +1601,8 @@ public class GPOUtils
 
     {
       short[] shortArray = gpo.getFieldsShort();
-      if(shortArray != null) {
-        for(int index = 0;
-            index < shortArray.length;
-            index++) {
+      if (shortArray != null) {
+        for (int index = 0; index < shortArray.length; index++) {
           hashCode ^= shortArray[index];
         }
       }
@@ -1689,10 +1610,8 @@ public class GPOUtils
 
     {
       int[] integerArray = gpo.getFieldsInteger();
-      if(integerArray != null) {
-        for(int index = 0;
-            index < integerArray.length;
-            index++) {
+      if (integerArray != null) {
+        for (int index = 0; index < integerArray.length; index++) {
           hashCode ^= integerArray[index];
         }
       }
@@ -1700,10 +1619,8 @@ public class GPOUtils
 
     {
       long[] longArray = gpo.getFieldsLong();
-      if(longArray != null) {
-        for(int index = 0;
-            index < longArray.length;
-            index++) {
+      if (longArray != null) {
+        for (int index = 0; index < longArray.length; index++) {
           hashCode ^= longArray[index];
         }
       }
@@ -1711,10 +1628,8 @@ public class GPOUtils
 
     {
       float[] floatArray = gpo.getFieldsFloat();
-      if(floatArray != null) {
-        for(int index = 0;
-            index < floatArray.length;
-            index++) {
+      if (floatArray != null) {
+        for (int index = 0; index < floatArray.length; index++) {
           hashCode ^= Float.floatToIntBits(floatArray[index]);
         }
       }
@@ -1722,10 +1637,8 @@ public class GPOUtils
 
     {
       double[] doubleArray = gpo.getFieldsDouble();
-      if(doubleArray != null) {
-        for(int index = 0;
-            index < doubleArray.length;
-            index++) {
+      if (doubleArray != null) {
+        for (int index = 0; index < doubleArray.length; index++) {
           hashCode ^= Double.doubleToLongBits(doubleArray[index]);
         }
       }
@@ -1733,10 +1646,8 @@ public class GPOUtils
 
     {
       Object[] objectArray = gpo.getFieldsObject();
-      if(objectArray != null) {
-        for(int index = 0;
-            index < objectArray.length;
-            index++) {
+      if (objectArray != null) {
+        for (int index = 0; index < objectArray.length; index++) {
           hashCode ^= objectArray[index].hashCode();
         }
       }
@@ -1745,22 +1656,34 @@ public class GPOUtils
     return hashCode;
   }
 
-  public static int indirectHashcode(GPOMutable gpo,
-                                     IndexSubset indexSubset)
+  /**
+   * This function computes the hashcode of a {@link GPOMutable} based on a specified subset of its data.
+   * <br/>
+   * <br/>
+   * <b>Note:</b> In some cases a {@link GPOMutable} object contains a field which is bucketed. In the case of
+   * bucketed fields, you may want to preserve the original value of the field, but only use the bucketed value
+   * of the field for computing a hashcode. In order to do this you can store the original value of {@link GPOMutable}'s
+   * field before calling this function, and replace it with the bucketed value. Then after the hashcode is computed, the
+   * original value of the field can be restored.
+   *
+   * @param gpo The {@link GPOMutable} to compute a hashcode for.
+   * @param indexSubset The subset of the {@link GPOMutable} used to compute the hashcode.
+   * @return The hashcode for the given {@link GPOMutable} computed from the specified subset of its data.
+   */
+  public static int indirectHashcode(GPOMutable gpo, IndexSubset indexSubset)
   {
-    int hashCode = 0;
+    int hashCode = 7;
+    final int hashMultiplier = 23;
 
     {
       String[] stringArray = gpo.getFieldsString();
       int[] srcIndex = indexSubset.fieldsStringIndexSubset;
-      if(srcIndex != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (srcIndex != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
-          hashCode ^= stringArray[srcIndex[index]].hashCode();
+          hashCode = hashMultiplier * hashCode + stringArray[srcIndex[index]].hashCode();
         }
       }
     }
@@ -1768,14 +1691,12 @@ public class GPOUtils
     {
       boolean[] booleanArray = gpo.getFieldsBoolean();
       int[] srcIndex = indexSubset.fieldsBooleanIndexSubset;
-      if(srcIndex != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (srcIndex != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
-          hashCode ^= booleanArray[srcIndex[index]] ? 1: 0;
+          hashCode = hashMultiplier * hashCode + (booleanArray[srcIndex[index]] ? 1 : 0);
         }
       }
     }
@@ -1783,14 +1704,12 @@ public class GPOUtils
     {
       char[] charArray = gpo.getFieldsCharacter();
       int[] srcIndex = indexSubset.fieldsCharacterIndexSubset;
-      if(srcIndex != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (srcIndex != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
-          hashCode ^= Character.getNumericValue(charArray[srcIndex[index]]);
+          hashCode = hashMultiplier * hashCode + Character.getNumericValue(charArray[srcIndex[index]]);
         }
       }
     }
@@ -1798,14 +1717,12 @@ public class GPOUtils
     {
       byte[] byteArray = gpo.getFieldsByte();
       int[] srcIndex = indexSubset.fieldsByteIndexSubset;
-      if(srcIndex != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (srcIndex != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
-          hashCode ^= byteArray[srcIndex[index]];
+          hashCode = hashMultiplier * hashCode + byteArray[srcIndex[index]];
         }
       }
     }
@@ -1813,14 +1730,12 @@ public class GPOUtils
     {
       short[] shortArray = gpo.getFieldsShort();
       int[] srcIndex = indexSubset.fieldsShortIndexSubset;
-      if(srcIndex != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (srcIndex != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
-          hashCode ^= shortArray[srcIndex[index]];
+          hashCode = hashMultiplier * hashCode + shortArray[srcIndex[index]];
         }
       }
     }
@@ -1828,14 +1743,12 @@ public class GPOUtils
     {
       int[] integerArray = gpo.getFieldsInteger();
       int[] srcIndex = indexSubset.fieldsIntegerIndexSubset;
-      if(srcIndex != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (srcIndex != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
-          hashCode ^= integerArray[srcIndex[index]];
+          hashCode = hashMultiplier * hashCode + integerArray[srcIndex[index]];
         }
       }
     }
@@ -1843,14 +1756,14 @@ public class GPOUtils
     {
       long[] longArray = gpo.getFieldsLong();
       int[] srcIndex = indexSubset.fieldsLongIndexSubset;
-      if(srcIndex != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (srcIndex != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
-          hashCode ^= longArray[srcIndex[index]];
+          long element = longArray[srcIndex[index]];
+          int elementHash = (int)(element ^ (element >>> 32));
+          hashCode = hashMultiplier * hashCode + elementHash;
         }
       }
     }
@@ -1858,14 +1771,12 @@ public class GPOUtils
     {
       float[] floatArray = gpo.getFieldsFloat();
       int[] srcIndex = indexSubset.fieldsFloatIndexSubset;
-      if(srcIndex != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (srcIndex != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
-          hashCode ^= Float.floatToIntBits(floatArray[srcIndex[index]]);
+          hashCode = hashMultiplier * hashCode + Float.floatToIntBits(floatArray[srcIndex[index]]);
         }
       }
     }
@@ -1873,14 +1784,14 @@ public class GPOUtils
     {
       double[] doubleArray = gpo.getFieldsDouble();
       int[] srcIndex = indexSubset.fieldsDoubleIndexSubset;
-      if(srcIndex != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (srcIndex != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
-          hashCode ^= Double.doubleToLongBits(doubleArray[srcIndex[index]]);
+          long element = Double.doubleToLongBits(doubleArray[srcIndex[index]]);
+          int elementHash = (int)(element ^ (element >>> 32));
+          hashCode = hashMultiplier * hashCode + elementHash;
         }
       }
     }
@@ -1888,14 +1799,13 @@ public class GPOUtils
     {
       Object[] objectArray = gpo.getFieldsObject();
       int[] srcIndex = indexSubset.fieldsObjectIndexSubset;
-      if(srcIndex != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (srcIndex != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
-          hashCode ^= objectArray[srcIndex[index]].hashCode();
+
+          hashCode = hashMultiplier * hashCode + objectArray[srcIndex[index]].hashCode();
         }
       }
     }
@@ -1903,17 +1813,14 @@ public class GPOUtils
     return hashCode;
   }
 
-  public static boolean equals(GPOMutable dest,
-                               GPOMutable src)
+  public static boolean equals(GPOMutable dest, GPOMutable src)
   {
     {
       String[] destString = dest.getFieldsString();
       String[] srcString = src.getFieldsString();
-      if(destString != null) {
-        for(int index = 0;
-            index < srcString.length;
-            index++) {
-          if(!destString[index].equals(srcString[index])) {
+      if (destString != null) {
+        for (int index = 0; index < srcString.length; index++) {
+          if (!destString[index].equals(srcString[index])) {
             return false;
           }
         }
@@ -1923,11 +1830,9 @@ public class GPOUtils
     {
       boolean[] destBoolean = dest.getFieldsBoolean();
       boolean[] srcBoolean = src.getFieldsBoolean();
-      if(destBoolean != null) {
-        for(int index = 0;
-            index < srcBoolean.length;
-            index++) {
-          if(destBoolean[index] != srcBoolean[index]) {
+      if (destBoolean != null) {
+        for (int index = 0; index < srcBoolean.length; index++) {
+          if (destBoolean[index] != srcBoolean[index]) {
             return false;
           }
         }
@@ -1937,11 +1842,9 @@ public class GPOUtils
     {
       char[] destChar = dest.getFieldsCharacter();
       char[] srcChar = src.getFieldsCharacter();
-      if(destChar != null) {
-        for(int index = 0;
-            index < srcChar.length;
-            index++) {
-          if(destChar[index] != srcChar[index]) {
+      if (destChar != null) {
+        for (int index = 0; index < srcChar.length; index++) {
+          if (destChar[index] != srcChar[index]) {
             return false;
           }
         }
@@ -1951,11 +1854,9 @@ public class GPOUtils
     {
       byte[] destByte = dest.getFieldsByte();
       byte[] srcByte = src.getFieldsByte();
-      if(destByte != null) {
-        for(int index = 0;
-            index < srcByte.length;
-            index++) {
-          if(destByte[index] != srcByte[index]) {
+      if (destByte != null) {
+        for (int index = 0; index < srcByte.length; index++) {
+          if (destByte[index] != srcByte[index]) {
             return false;
           }
         }
@@ -1965,11 +1866,9 @@ public class GPOUtils
     {
       short[] destShort = dest.getFieldsShort();
       short[] srcShort = src.getFieldsShort();
-      if(destShort != null) {
-        for(int index = 0;
-            index < srcShort.length;
-            index++) {
-          if(destShort[index] != srcShort[index]) {
+      if (destShort != null) {
+        for (int index = 0; index < srcShort.length; index++) {
+          if (destShort[index] != srcShort[index]) {
             return false;
           }
         }
@@ -1979,11 +1878,9 @@ public class GPOUtils
     {
       int[] destInteger = dest.getFieldsInteger();
       int[] srcInteger = src.getFieldsInteger();
-      if(destInteger != null) {
-        for(int index = 0;
-            index < srcInteger.length;
-            index++) {
-          if(destInteger[index] != srcInteger[index]) {
+      if (destInteger != null) {
+        for (int index = 0; index < srcInteger.length; index++) {
+          if (destInteger[index] != srcInteger[index]) {
             return false;
           }
         }
@@ -1993,11 +1890,9 @@ public class GPOUtils
     {
       long[] destLong = dest.getFieldsLong();
       long[] srcLong = src.getFieldsLong();
-      if(destLong != null) {
-        for(int index = 0;
-            index < srcLong.length;
-            index++) {
-          if(destLong[index] != srcLong[index]) {
+      if (destLong != null) {
+        for (int index = 0; index < srcLong.length; index++) {
+          if (destLong[index] != srcLong[index]) {
             return false;
           }
         }
@@ -2007,11 +1902,9 @@ public class GPOUtils
     {
       float[] destFloat = dest.getFieldsFloat();
       float[] srcFloat = src.getFieldsFloat();
-      if(destFloat != null) {
-        for(int index = 0;
-            index < srcFloat.length;
-            index++) {
-          if(destFloat[index] != srcFloat[index]) {
+      if (destFloat != null) {
+        for (int index = 0; index < srcFloat.length; index++) {
+          if (destFloat[index] != srcFloat[index]) {
             return false;
           }
         }
@@ -2021,11 +1914,9 @@ public class GPOUtils
     {
       double[] destDouble = dest.getFieldsDouble();
       double[] srcDouble = src.getFieldsDouble();
-      if(destDouble != null) {
-        for(int index = 0;
-            index < srcDouble.length;
-            index++) {
-          if(destDouble[index] != srcDouble[index]) {
+      if (destDouble != null) {
+        for (int index = 0; index < srcDouble.length; index++) {
+          if (destDouble[index] != srcDouble[index]) {
             return false;
           }
         }
@@ -2035,11 +1926,9 @@ public class GPOUtils
     {
       Object[] destObject = dest.getFieldsObject();
       Object[] srcObject = src.getFieldsObject();
-      if(destObject != null) {
-        for(int index = 0;
-            index < srcObject.length;
-            index++) {
-          if(!destObject[index].equals(srcObject[index])) {
+      if (destObject != null) {
+        for (int index = 0; index < srcObject.length; index++) {
+          if (!destObject[index].equals(srcObject[index])) {
             return false;
           }
         }
@@ -2049,22 +1938,18 @@ public class GPOUtils
     return true;
   }
 
-  public static boolean subsetEquals(GPOMutable dest,
-                                     GPOMutable src,
-                                     IndexSubset indexSubset)
+  public static boolean subsetEquals(GPOMutable dest, GPOMutable src, IndexSubset indexSubset)
   {
     {
       String[] destString = dest.getFieldsString();
       String[] srcString = src.getFieldsString();
       int[] srcIndex = indexSubset.fieldsStringIndexSubset;
-      if(srcIndex != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (srcIndex != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
-          if(!destString[srcIndex[index]].equals(srcString[srcIndex[index]])) {
+          if (!destString[srcIndex[index]].equals(srcString[srcIndex[index]])) {
             return false;
           }
         }
@@ -2075,14 +1960,12 @@ public class GPOUtils
       boolean[] destBoolean = dest.getFieldsBoolean();
       boolean[] srcBoolean = src.getFieldsBoolean();
       int[] srcIndex = indexSubset.fieldsBooleanIndexSubset;
-      if(srcIndex != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (srcIndex != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
-          if(destBoolean[srcIndex[index]] != srcBoolean[srcIndex[index]]) {
+          if (destBoolean[srcIndex[index]] != srcBoolean[srcIndex[index]]) {
             return false;
           }
         }
@@ -2093,14 +1976,12 @@ public class GPOUtils
       char[] destChar = dest.getFieldsCharacter();
       char[] srcChar = src.getFieldsCharacter();
       int[] srcIndex = indexSubset.fieldsBooleanIndexSubset;
-      if(srcIndex != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (srcIndex != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
-          if(destChar[srcIndex[index]] != srcChar[srcIndex[index]]) {
+          if (destChar[srcIndex[index]] != srcChar[srcIndex[index]]) {
             return false;
           }
         }
@@ -2111,14 +1992,12 @@ public class GPOUtils
       byte[] destByte = dest.getFieldsByte();
       byte[] srcByte = src.getFieldsByte();
       int[] srcIndex = indexSubset.fieldsByteIndexSubset;
-      if(srcIndex != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (srcIndex != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
-          if(destByte[srcIndex[index]] != srcByte[srcIndex[index]]) {
+          if (destByte[srcIndex[index]] != srcByte[srcIndex[index]]) {
             return false;
           }
         }
@@ -2129,14 +2008,12 @@ public class GPOUtils
       short[] destShort = dest.getFieldsShort();
       short[] srcShort = src.getFieldsShort();
       int[] srcIndex = indexSubset.fieldsShortIndexSubset;
-      if(srcIndex != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (srcIndex != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
-          if(destShort[srcIndex[index]] != srcShort[srcIndex[index]]) {
+          if (destShort[srcIndex[index]] != srcShort[srcIndex[index]]) {
             return false;
           }
         }
@@ -2147,14 +2024,12 @@ public class GPOUtils
       int[] destInteger = dest.getFieldsInteger();
       int[] srcInteger = src.getFieldsInteger();
       int[] srcIndex = indexSubset.fieldsIntegerIndexSubset;
-      if(srcIndex != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (srcIndex != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
-          if(destInteger[srcIndex[index]] != srcInteger[srcIndex[index]]) {
+          if (destInteger[srcIndex[index]] != srcInteger[srcIndex[index]]) {
             return false;
           }
         }
@@ -2165,14 +2040,12 @@ public class GPOUtils
       long[] destLong = dest.getFieldsLong();
       long[] srcLong = src.getFieldsLong();
       int[] srcIndex = indexSubset.fieldsLongIndexSubset;
-      if(srcIndex != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (srcIndex != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
-          if(destLong[srcIndex[index]] != srcLong[srcIndex[index]]) {
+          if (destLong[srcIndex[index]] != srcLong[srcIndex[index]]) {
             return false;
           }
         }
@@ -2183,14 +2056,12 @@ public class GPOUtils
       float[] destFloat = dest.getFieldsFloat();
       float[] srcFloat = src.getFieldsFloat();
       int[] srcIndex = indexSubset.fieldsFloatIndexSubset;
-      if(srcIndex != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (srcIndex != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
-          if(destFloat[srcIndex[index]] != srcFloat[srcIndex[index]]) {
+          if (destFloat[srcIndex[index]] != srcFloat[srcIndex[index]]) {
             return false;
           }
         }
@@ -2201,14 +2072,12 @@ public class GPOUtils
       double[] destDouble = dest.getFieldsDouble();
       double[] srcDouble = src.getFieldsDouble();
       int[] srcIndex = indexSubset.fieldsDoubleIndexSubset;
-      if(srcIndex != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (srcIndex != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
-          if(destDouble[srcIndex[index]] != srcDouble[srcIndex[index]]) {
+          if (destDouble[srcIndex[index]] != srcDouble[srcIndex[index]]) {
             return false;
           }
         }
@@ -2219,14 +2088,12 @@ public class GPOUtils
       Object[] destObject = dest.getFieldsObject();
       Object[] srcObject = src.getFieldsObject();
       int[] srcIndex = indexSubset.fieldsObjectIndexSubset;
-      if(srcIndex != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (srcIndex != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
-          if(!destObject[srcIndex[index]].equals(srcObject[srcIndex[index]])) {
+          if (!destObject[srcIndex[index]].equals(srcObject[srcIndex[index]])) {
             return false;
           }
         }
@@ -2236,22 +2103,18 @@ public class GPOUtils
     return true;
   }
 
-  public static boolean indirectEquals(GPOMutable dest,
-                                       GPOMutable src,
-                                       IndexSubset indexSubset)
+  public static boolean indirectEquals(GPOMutable dest, GPOMutable src, IndexSubset indexSubset)
   {
     {
       String[] destString = dest.getFieldsString();
       String[] srcString = src.getFieldsString();
       int[] srcIndex = indexSubset.fieldsStringIndexSubset;
-      if(destString != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (destString != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
-          if(!destString[index].equals(srcString[srcIndex[index]])) {
+          if (!destString[index].equals(srcString[srcIndex[index]])) {
             return false;
           }
         }
@@ -2262,14 +2125,12 @@ public class GPOUtils
       boolean[] destBoolean = dest.getFieldsBoolean();
       boolean[] srcBoolean = src.getFieldsBoolean();
       int[] srcIndex = indexSubset.fieldsBooleanIndexSubset;
-      if(destBoolean != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (destBoolean != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
-          if(destBoolean[index] != srcBoolean[srcIndex[index]]) {
+          if (destBoolean[index] != srcBoolean[srcIndex[index]]) {
             return false;
           }
         }
@@ -2280,14 +2141,12 @@ public class GPOUtils
       char[] destChar = dest.getFieldsCharacter();
       char[] srcChar = src.getFieldsCharacter();
       int[] srcIndex = indexSubset.fieldsBooleanIndexSubset;
-      if(destChar != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (destChar != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
-          if(destChar[index] != srcChar[srcIndex[index]]) {
+          if (destChar[index] != srcChar[srcIndex[index]]) {
             return false;
           }
         }
@@ -2298,14 +2157,12 @@ public class GPOUtils
       byte[] destByte = dest.getFieldsByte();
       byte[] srcByte = src.getFieldsByte();
       int[] srcIndex = indexSubset.fieldsByteIndexSubset;
-      if(destByte != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (destByte != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
-          if(destByte[index] != srcByte[srcIndex[index]]) {
+          if (destByte[index] != srcByte[srcIndex[index]]) {
             return false;
           }
         }
@@ -2316,14 +2173,12 @@ public class GPOUtils
       short[] destShort = dest.getFieldsShort();
       short[] srcShort = src.getFieldsShort();
       int[] srcIndex = indexSubset.fieldsShortIndexSubset;
-      if(destShort != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (destShort != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
-          if(destShort[index] != srcShort[srcIndex[index]]) {
+          if (destShort[index] != srcShort[srcIndex[index]]) {
             return false;
           }
         }
@@ -2334,14 +2189,12 @@ public class GPOUtils
       int[] destInteger = dest.getFieldsInteger();
       int[] srcInteger = src.getFieldsInteger();
       int[] srcIndex = indexSubset.fieldsIntegerIndexSubset;
-      if(destInteger != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (destInteger != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
-          if(destInteger[index] != srcInteger[srcIndex[index]]) {
+          if (destInteger[index] != srcInteger[srcIndex[index]]) {
             return false;
           }
         }
@@ -2352,14 +2205,12 @@ public class GPOUtils
       long[] destLong = dest.getFieldsLong();
       long[] srcLong = src.getFieldsLong();
       int[] srcIndex = indexSubset.fieldsLongIndexSubset;
-      if(destLong != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (destLong != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
-          if(destLong[index] != srcLong[srcIndex[index]]) {
+          if (destLong[index] != srcLong[srcIndex[index]]) {
             return false;
           }
         }
@@ -2370,14 +2221,12 @@ public class GPOUtils
       float[] destFloat = dest.getFieldsFloat();
       float[] srcFloat = src.getFieldsFloat();
       int[] srcIndex = indexSubset.fieldsFloatIndexSubset;
-      if(destFloat != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (destFloat != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
-          if(destFloat[index] != srcFloat[srcIndex[index]]) {
+          if (destFloat[index] != srcFloat[srcIndex[index]]) {
             return false;
           }
         }
@@ -2388,14 +2237,12 @@ public class GPOUtils
       double[] destDouble = dest.getFieldsDouble();
       double[] srcDouble = src.getFieldsDouble();
       int[] srcIndex = indexSubset.fieldsDoubleIndexSubset;
-      if(destDouble != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (destDouble != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
-          if(destDouble[index] != srcDouble[srcIndex[index]]) {
+          if (destDouble[index] != srcDouble[srcIndex[index]]) {
             return false;
           }
         }
@@ -2406,14 +2253,12 @@ public class GPOUtils
       Object[] destObject = dest.getFieldsObject();
       Object[] srcObject = src.getFieldsObject();
       int[] srcIndex = indexSubset.fieldsObjectIndexSubset;
-      if(destObject != null) {
-        for(int index = 0;
-            index < srcIndex.length;
-            index++) {
-          if(srcIndex[index] == -1) {
+      if (destObject != null) {
+        for (int index = 0; index < srcIndex.length; index++) {
+          if (srcIndex[index] == -1) {
             continue;
           }
-          if(!destObject[index].equals(srcObject[srcIndex[index]])) {
+          if (!destObject[index].equals(srcObject[srcIndex[index]])) {
             return false;
           }
         }
@@ -2425,63 +2270,58 @@ public class GPOUtils
 
   public static void zeroFillNumeric(GPOMutable value)
   {
-    if(value.getFieldsByte() != null) {
-      Arrays.fill(value.getFieldsByte(), (byte) 0);
+    if (value.getFieldsByte() != null) {
+      Arrays.fill(value.getFieldsByte(), (byte)0);
     }
 
-    if(value.getFieldsShort() != null) {
-      Arrays.fill(value.getFieldsShort(), (short) 0);
+    if (value.getFieldsShort() != null) {
+      Arrays.fill(value.getFieldsShort(), (short)0);
     }
 
-    if(value.getFieldsInteger() != null) {
+    if (value.getFieldsInteger() != null) {
       Arrays.fill(value.getFieldsInteger(), 0);
     }
 
-    if(value.getFieldsLong() != null) {
+    if (value.getFieldsLong() != null) {
       Arrays.fill(value.getFieldsLong(), 0L);
     }
 
-    if(value.getFieldsFloat() != null) {
+    if (value.getFieldsFloat() != null) {
       Arrays.fill(value.getFieldsFloat(), 0.0f);
     }
 
-    if(value.getFieldsDouble() != null) {
+    if (value.getFieldsDouble() != null) {
       Arrays.fill(value.getFieldsDouble(), 0.0);
     }
   }
 
-  public static IndexSubset computeSubIndices(FieldsDescriptor child,
-                                              FieldsDescriptor parent)
+  public static IndexSubset computeSubIndices(FieldsDescriptor child, FieldsDescriptor parent)
   {
     IndexSubset indexSubset = new IndexSubset();
 
-    for(Map.Entry<Type, List<String>> entry: child.getTypeToFields().entrySet()) {
+    for (Map.Entry<Type, List<String>> entry : child.getTypeToFields().entrySet()) {
       Type type = entry.getKey();
       List<String> childFields = entry.getValue();
       List<String> parentFields = parent.getTypeToFields().get(type);
 
       int size = child.getTypeToSize().get(type);
       int[] indices;
-      if(child.getTypeToFields().get(type) != null &&
-         child.getCompressedTypes().contains(type)) {
+      if (child.getTypeToFields().get(type) != null &&
+          child.getCompressedTypes().contains(type)) {
         indices = new int[1];
-      }
-      else {
+      } else {
         indices = new int[size];
 
-        for(int index = 0;
-            index < size;
-            index++) {
-          if(parentFields == null) {
+        for (int index = 0; index < size; index++) {
+          if (parentFields == null) {
             indices[index] = -1;
-          }
-          else {
+          } else {
             indices[index] = parentFields.indexOf(childFields.get(index));
           }
         }
       }
 
-      switch(type) {
+      switch (type) {
         case BOOLEAN: {
           indexSubset.fieldsBooleanIndexSubset = indices;
           break;
@@ -2584,24 +2424,27 @@ public class GPOUtils
     @Override
     public String toString()
     {
-      return "IndexSubset{" + "fieldsBooleanIndexSubset=" + fieldsBooleanIndexSubset + ", fieldsCharacterIndexSubset=" + fieldsCharacterIndexSubset + ", fieldsByteIndexSubset=" + fieldsByteIndexSubset + ", fieldsShortIndexSubset=" + fieldsShortIndexSubset + ", fieldsIntegerIndexSubset=" + fieldsIntegerIndexSubset + ", fieldsLongIndexSubset=" + fieldsLongIndexSubset + ", fieldsFloatIndexSubset=" + fieldsFloatIndexSubset + ", fieldsDoubleIndexSubset=" + fieldsDoubleIndexSubset + ", fieldsStringIndexSubset=" + fieldsStringIndexSubset + '}';
+      return "IndexSubset{" + "fieldsBooleanIndexSubset=" + fieldsBooleanIndexSubset + ", fieldsCharacterIndexSubset="
+          + fieldsCharacterIndexSubset + ", fieldsByteIndexSubset=" + fieldsByteIndexSubset
+          + ", fieldsShortIndexSubset=" + fieldsShortIndexSubset + ", fieldsIntegerIndexSubset="
+          + fieldsIntegerIndexSubset + ", fieldsLongIndexSubset=" + fieldsLongIndexSubset + ", fieldsFloatIndexSubset="
+          + fieldsFloatIndexSubset + ", fieldsDoubleIndexSubset=" + fieldsDoubleIndexSubset
+          + ", fieldsStringIndexSubset=" + fieldsStringIndexSubset + '}';
     }
   }
 
-  public static Map<String, Object> getDestringedData(FieldsDescriptor fd,
-                                                      Map<String, String> stringMap)
+  public static Map<String, Object> getDestringedData(FieldsDescriptor fd, Map<String, String> stringMap)
   {
     Map<String, Object> fieldToData = Maps.newHashMap();
     Map<String, Type> fieldToType = fd.getFieldToType();
 
-    for(Map.Entry<String, String> entry: stringMap.entrySet()) {
+    for (Map.Entry<String, String> entry : stringMap.entrySet()) {
       Object objValue;
       String valueString = entry.getValue();
       Type valueType = fieldToType.get(entry.getKey());
 
-      switch(valueType) {
-        case BOOLEAN:
-        {
+      switch (valueType) {
+        case BOOLEAN: {
           objValue = Boolean.valueOf(valueString);
           break;
         }
@@ -2656,8 +2499,8 @@ public class GPOUtils
   {
     Map<String, Object> values = Maps.newHashMap();
 
-    for(String field: fields.getFields()) {
-      if(!gpo.getFieldDescriptor().getFields().getFields().contains(field)) {
+    for (String field : fields.getFields()) {
+      if (!gpo.getFieldDescriptor().getFields().getFields().contains(field)) {
         continue;
       }
 
@@ -2666,5 +2509,35 @@ public class GPOUtils
     }
 
     return values;
+  }
+
+  /**
+   * Determines if the given value is within the range of the specified type.
+   * @param type The type to determine the range of. Valid types can be byte or short.
+   * @param val The value to check the range of.
+   * @return True if the given int value is within the range of the specified type, false otherwise.
+   */
+  public static boolean insideRange(Type type, int val)
+  {
+    switch (type) {
+      case BYTE: {
+        return !(val < (int)Byte.MIN_VALUE || val > (int)Byte.MAX_VALUE);
+      }
+      case SHORT: {
+        return !(val < (int)Short.MIN_VALUE || val > (int)Short.MAX_VALUE);
+      }
+      default:
+        throw new UnsupportedOperationException("This operation is not supported for the type " + type);
+    }
+  }
+
+  /**
+   * Returns true if the given type is of type byte, short, or integer.
+   * @param type The type to check.
+   * @return True if the given type is of type byte, short or integer.
+   */
+  public static boolean numericTypeIntOrSmaller(Type type)
+  {
+    return type == Type.BYTE || type == Type.SHORT || type == Type.INTEGER;
   }
 }

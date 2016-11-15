@@ -1,27 +1,33 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.io;
 
 import java.util.Iterator;
 import java.util.concurrent.ArrayBlockingQueue;
 
-import com.datatorrent.api.*;
-import com.datatorrent.api.Context.OperatorContext;
-import com.datatorrent.common.util.BaseOperator;
 import org.apache.commons.lang3.ClassUtils;
+
+import com.datatorrent.api.Context.OperatorContext;
+import com.datatorrent.api.DefaultOutputPort;
+import com.datatorrent.api.InputOperator;
+import com.datatorrent.api.Operator;
+import com.datatorrent.common.util.BaseOperator;
 
 /**
  * This an input operator which passes data from an asynchronous data source to a port processing thread.
@@ -36,6 +42,7 @@ import org.apache.commons.lang3.ClassUtils;
  *
  * @since 0.3.2
  */
+@org.apache.hadoop.classification.InterfaceStability.Evolving
 public abstract class SimpleSinglePortInputOperator<T> extends BaseOperator implements InputOperator, Operator.ActivationListener<OperatorContext>
 {
   private transient Thread ioThread;
@@ -44,7 +51,7 @@ public abstract class SimpleSinglePortInputOperator<T> extends BaseOperator impl
    * The single output port of this input operator.
    * Collects asynchronously emitted tuples and flushes in container thread.
    */
-  final public transient BufferingOutputPort<T> outputPort;
+  public final transient BufferingOutputPort<T> outputPort;
 
   public SimpleSinglePortInputOperator(int portCapacity)
   {
@@ -57,7 +64,7 @@ public abstract class SimpleSinglePortInputOperator<T> extends BaseOperator impl
   }
 
   @Override
-  final public void activate(OperatorContext ctx)
+  public final void activate(OperatorContext ctx)
   {
     isActive = true;
     if (this instanceof Runnable) {
@@ -67,7 +74,7 @@ public abstract class SimpleSinglePortInputOperator<T> extends BaseOperator impl
   }
 
   @Override
-  final public void deactivate()
+  public final void deactivate()
   {
     isActive = false;
     if (ioThread != null) {
@@ -76,7 +83,7 @@ public abstract class SimpleSinglePortInputOperator<T> extends BaseOperator impl
     }
   }
 
-  final public boolean isActive()
+  public final boolean isActive()
   {
     return isActive;
   }
@@ -111,8 +118,7 @@ public abstract class SimpleSinglePortInputOperator<T> extends BaseOperator impl
     {
       try {
         tuples.put(tuple);
-      }
-      catch (InterruptedException ex) {
+      } catch (InterruptedException ex) {
         throw new RuntimeException(ex);
       }
     }
@@ -126,6 +132,6 @@ public abstract class SimpleSinglePortInputOperator<T> extends BaseOperator impl
       }
     }
 
-  };
+  }
 
 }

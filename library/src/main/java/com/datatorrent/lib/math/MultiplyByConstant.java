@@ -1,29 +1,32 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.math;
 
-import com.datatorrent.common.util.BaseOperator;
 import com.datatorrent.api.DefaultInputPort;
 import com.datatorrent.api.DefaultOutputPort;
 import com.datatorrent.api.annotation.Stateless;
+import com.datatorrent.common.util.BaseOperator;
 
 /**
  * Multiplies input tuple (Number) by the value of property "multiplier" and emits the result on respective ports.
  * <p>
- * This operator emits the result as Long on port "longProduct", as Integer on port "integerProduct", as Double on port "doubleProduct", and as Float on port "floatProduct". 
+ * This operator emits the result as Long on port "longProduct", as Integer on port "integerProduct", as Double on port "doubleProduct", and as Float on port "floatProduct".
  * Output is computed in current window.No state dependency among input tuples
  * This is a pass through operator
  * <br>
@@ -48,9 +51,9 @@ import com.datatorrent.api.annotation.Stateless;
 @Stateless
 public class MultiplyByConstant extends BaseOperator
 {
-	/**
-	 * Input number port.
-	 */
+  /**
+   * Input number port.
+   */
   public final transient DefaultInputPort<Number> input = new DefaultInputPort<Number>()
   {
     @Override
@@ -76,22 +79,22 @@ public class MultiplyByConstant extends BaseOperator
     }
 
   };
-  
+
   /**
    * Long output port.
    */
   public final transient DefaultOutputPort<Long> longProduct = new DefaultOutputPort<Long>();
-  
+
   /**
    * Integer output port.
    */
   public final transient DefaultOutputPort<Integer> integerProduct = new DefaultOutputPort<Integer>();
-  
+
   /**
    * Double output port.
    */
   public final transient DefaultOutputPort<Double> doubleProduct = new DefaultOutputPort<Double>();
-  
+
   /**
    * Float output port.
    */

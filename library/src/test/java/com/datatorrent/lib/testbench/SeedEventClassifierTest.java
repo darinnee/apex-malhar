@@ -1,17 +1,20 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.testbench;
 
@@ -96,8 +99,7 @@ public class SeedEventClassifierTest
     Sink inSink2 = oper.data2.getSink();
     if (isstring) {
       oper.string_data.setSink(classifySink);
-    }
-    else {
+    } else {
       oper.hash_data.setSink(hashSink);
     }
 
@@ -119,12 +121,11 @@ public class SeedEventClassifierTest
           inSink2.put(input);
         }
       }
-    }
-    else {
+    } else {
       Integer input;
       for (int j = 0; j < 5; j++) {
         for (int i = 0; i < numTuples; i++) {
-          input = new Integer(i);
+          input = i;
           inSink1.put(input);
           inSink2.put(input);
         }
@@ -134,14 +135,13 @@ public class SeedEventClassifierTest
     if (isstring) {
       Assert.assertEquals("number emitted tuples", numTuples * 2 * 5, classifySink.count);
       LOG.debug(String.format("\n********************\nProcessed %d tuples with %d uniques\n********************\n",
-                              classifySink.count,
-                              classifySink.collectedTuples.size()));
-    }
-    else {
+          classifySink.count,
+          classifySink.collectedTuples.size()));
+    } else {
       Assert.assertEquals("number emitted tuples", numTuples * 2 * 5, hashSink.count);
       LOG.debug(String.format("\n********************\nProcessed %d tuples with %d uniques\n********************\n",
-                              hashSink.count,
-                              hashSink.collectedTuples.size()));
+          hashSink.count,
+          hashSink.collectedTuples.size()));
     }
   }
 }

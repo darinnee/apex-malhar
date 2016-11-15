@@ -1,17 +1,20 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.io;
 
@@ -23,19 +26,21 @@ import javax.mail.Message;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
 
-import org.apache.hadoop.conf.Configuration;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.datatorrent.api.DAG;
-import com.datatorrent.api.LocalMode;
-import com.datatorrent.api.StreamingApplication;
+import org.apache.hadoop.conf.Configuration;
+
 import com.google.common.collect.Maps;
 import com.icegreen.greenmail.util.GreenMail;
 import com.icegreen.greenmail.util.ServerSetup;
 import com.icegreen.greenmail.util.ServerSetupTest;
+
+import com.datatorrent.api.DAG;
+import com.datatorrent.api.LocalMode;
+import com.datatorrent.api.StreamingApplication;
 
 public class SmtpOutputOperatorTest
 {
@@ -94,7 +99,7 @@ public class SmtpOutputOperatorTest
     String expectedContent = content.replace("{}", data.toString()).trim();
 
     Assert.assertTrue(expectedContent.equals(receivedContent));
-    Assert.assertEquals(from, ((InternetAddress) messages[0].getFrom()[0]).getAddress());
+    Assert.assertEquals(from, ((InternetAddress)messages[0].getFrom()[0]).getAddress());
     Assert.assertEquals(to, messages[0].getRecipients(Message.RecipientType.TO)[0].toString());
     Assert.assertEquals(cc, messages[0].getRecipients(Message.RecipientType.TO)[1].toString());
     Assert.assertEquals(cc, messages[0].getRecipients(Message.RecipientType.CC)[0].toString());
@@ -118,7 +123,7 @@ public class SmtpOutputOperatorTest
     String expectedContent = content.replace("{}", data.toString()).trim();
 
     Assert.assertTrue(expectedContent.equals(receivedContent));
-    Assert.assertEquals(from, ((InternetAddress) messages[0].getFrom()[0]).getAddress());
+    Assert.assertEquals(from, ((InternetAddress)messages[0].getFrom()[0]).getAddress());
     Assert.assertEquals(to, messages[0].getAllRecipients()[0].toString());
   }
 
@@ -136,7 +141,8 @@ public class SmtpOutputOperatorTest
     conf.set(StreamingApplication.DT_PREFIX + "operator.o1.prop.recipients.CC", cc);
 
     final AtomicReference<SmtpOutputOperator> o1 = new AtomicReference<SmtpOutputOperator>();
-    StreamingApplication app = new StreamingApplication() {
+    StreamingApplication app = new StreamingApplication()
+    {
       @Override
       public void populateDAG(DAG dag, Configuration conf)
       {

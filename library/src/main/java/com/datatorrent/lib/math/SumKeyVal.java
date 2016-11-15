@@ -1,17 +1,20 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.math;
 
@@ -20,13 +23,12 @@ import java.util.Map;
 
 import org.apache.commons.lang.mutable.MutableDouble;
 
-import com.datatorrent.lib.util.BaseNumberKeyValueOperator;
-import com.datatorrent.lib.util.KeyValPair;
-
 import com.datatorrent.api.DefaultInputPort;
 import com.datatorrent.api.DefaultOutputPort;
 import com.datatorrent.api.StreamCodec;
 import com.datatorrent.api.annotation.OutputPortFieldAnnotation;
+import com.datatorrent.lib.util.BaseNumberKeyValueOperator;
+import com.datatorrent.lib.util.KeyValPair;
 
 /**
  * Emits the sum of values for each key at the end of window.
@@ -90,8 +92,7 @@ public class SumKeyVal<K, V extends Number> extends BaseNumberKeyValueOperator<K
       SumEntry val = sums.get(key);
       if (val == null) {
         val = new SumEntry(new MutableDouble(tuple.getValue().doubleValue()), true);
-      }
-      else {
+      } else {
         val.sum.add(tuple.getValue().doubleValue());
         val.changed = true;
       }
@@ -191,12 +192,11 @@ public class SumKeyVal<K, V extends Number> extends BaseNumberKeyValueOperator<K
   public void clearCache()
   {
     if (cumulative) {
-      for (Map.Entry<K, SumEntry> e: sums.entrySet()) {
+      for (Map.Entry<K, SumEntry> e : sums.entrySet()) {
         SumEntry val = e.getValue();
         val.changed = false;
       }
-    }
-    else {
+    } else {
       sums.clear();
     }
   }

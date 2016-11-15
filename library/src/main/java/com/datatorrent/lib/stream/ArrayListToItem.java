@@ -1,25 +1,29 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.stream;
+
+import java.util.ArrayList;
 
 import com.datatorrent.api.DefaultInputPort;
 import com.datatorrent.api.DefaultOutputPort;
 import com.datatorrent.api.annotation.Stateless;
 import com.datatorrent.lib.util.BaseKeyOperator;
-import java.util.ArrayList;
 
 /**
  * An implementation of BaseKeyOperator that breaks up an ArrayList tuple into Objects.
@@ -39,25 +43,25 @@ import java.util.ArrayList;
 @Stateless
 public class ArrayListToItem<K> extends BaseKeyOperator<K>
 {
-	/**
-	 * Input data port that takes an arraylist.
-	 */
-	public final transient DefaultInputPort<ArrayList<K>> data = new DefaultInputPort<ArrayList<K>>()
-	{
-		/**
-		 * Emit one item at a time
-		 */
-		@Override
-		public void process(ArrayList<K> tuple)
-		{
-			for (K k : tuple) {
-				item.emit(cloneKey(k));
-			}
-		}
-	};
+  /**
+   * Input data port that takes an arraylist.
+   */
+  public final transient DefaultInputPort<ArrayList<K>> data = new DefaultInputPort<ArrayList<K>>()
+  {
+    /**
+     * Emit one item at a time
+     */
+    @Override
+    public void process(ArrayList<K> tuple)
+    {
+      for (K k : tuple) {
+        item.emit(cloneKey(k));
+      }
+    }
+  };
 
-	/**
-	 * Output port that emits an array item.
-	 */
-	public final transient DefaultOutputPort<K> item = new DefaultOutputPort<K>();
+  /**
+   * Output port that emits an array item.
+   */
+  public final transient DefaultOutputPort<K> item = new DefaultOutputPort<K>();
 }

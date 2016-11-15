@@ -1,17 +1,20 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.db.jdbc;
 
@@ -23,16 +26,15 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
 
-import javax.annotation.Nonnull;
-
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.datatorrent.api.DAG;
-import com.datatorrent.netlet.util.DTThrowable;
-import com.datatorrent.lib.helper.OperatorContextTestHelper;
 import com.google.common.collect.Lists;
+
+import com.datatorrent.api.DAG;
+import com.datatorrent.lib.helper.OperatorContextTestHelper;
+import com.datatorrent.netlet.util.DTThrowable;
 
 /**
  * Test for {@link AbstractJdbcNonTransactionableOutputOperator Operator}
@@ -67,8 +69,7 @@ public class JdbcNonTransactionalOutputOperatorTest
 
       String createTable = "CREATE TABLE IF NOT EXISTS " + TABLE_NAME + " (ID INTEGER)";
       stmt.executeUpdate(createTable);
-    }
-    catch (Throwable e) {
+    } catch (Throwable e) {
       DTThrowable.rethrow(e);
     }
   }
@@ -81,8 +82,7 @@ public class JdbcNonTransactionalOutputOperatorTest
 
       String cleanTable = "delete from " + TABLE_NAME;
       stmt.executeUpdate(cleanTable);
-    }
-    catch (SQLException e) {
+    } catch (SQLException e) {
       throw new RuntimeException(e);
     }
   }
@@ -96,7 +96,6 @@ public class JdbcNonTransactionalOutputOperatorTest
       cleanTable();
     }
 
-    @Nonnull
     @Override
     protected String getUpdateCommand()
     {
@@ -119,12 +118,11 @@ public class JdbcNonTransactionalOutputOperatorTest
         String countQuery = "SELECT * FROM " + TABLE_NAME;
         ResultSet resultSet = stmt.executeQuery(countQuery);
         int count = 0;
-        while(resultSet.next()) {
+        while (resultSet.next()) {
           count++;
         }
         return count;
-      }
-      catch (SQLException e) {
+      } catch (SQLException e) {
         throw new RuntimeException("fetching count", e);
       }
     }
@@ -140,7 +138,8 @@ public class JdbcNonTransactionalOutputOperatorTest
 
     com.datatorrent.api.Attribute.AttributeMap.DefaultAttributeMap attributeMap = new com.datatorrent.api.Attribute.AttributeMap.DefaultAttributeMap();
     attributeMap.put(DAG.APPLICATION_ID, APP_ID);
-    OperatorContextTestHelper.TestIdOperatorContext context = new OperatorContextTestHelper.TestIdOperatorContext(OPERATOR_ID, attributeMap);
+    OperatorContextTestHelper.TestIdOperatorContext context = new OperatorContextTestHelper.TestIdOperatorContext(
+        OPERATOR_ID, attributeMap);
     outputOperator.setStore(store);
 
     outputOperator.setup(context);
@@ -159,4 +158,3 @@ public class JdbcNonTransactionalOutputOperatorTest
     Assert.assertEquals("rows in db", 10, outputOperator.getNumOfEventsInStore());
   }
 }
-

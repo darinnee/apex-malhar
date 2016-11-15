@@ -1,31 +1,38 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.io.jms;
+
+import java.io.IOException;
+import java.util.List;
+
+import javax.jms.JMSException;
+import javax.jms.Message;
+import javax.jms.MessageProducer;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.common.collect.Lists;
 
 import com.datatorrent.api.Context.OperatorContext;
 import com.datatorrent.api.DAG;
 import com.datatorrent.api.Operator;
-import com.google.common.collect.Lists;
-import java.io.IOException;
-import java.util.List;
-import javax.jms.JMSException;
-import javax.jms.Message;
-import javax.jms.MessageProducer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * This is the base implementation of an JMS output operator.&nbsp;
@@ -47,6 +54,7 @@ import org.slf4j.LoggerFactory;
  *
  * @since 0.3.2
  */
+@org.apache.hadoop.classification.InterfaceStability.Evolving
 public abstract class AbstractJMSOutputOperator extends JMSBase implements Operator
 {
   private static final Logger logger = LoggerFactory.getLogger(AbstractJMSOutputOperator.class);
@@ -89,8 +97,7 @@ public abstract class AbstractJMSOutputOperator extends JMSBase implements Opera
 
     try {
       createConnection();
-    }
-    catch (JMSException ex) {
+    } catch (JMSException ex) {
       logger.debug(ex.getLocalizedMessage());
       throw new RuntimeException(ex);
     }
@@ -99,8 +106,7 @@ public abstract class AbstractJMSOutputOperator extends JMSBase implements Opera
 
     try {
       store.connect();
-    }
-    catch (IOException ex) {
+    } catch (IOException ex) {
       throw new RuntimeException(ex);
     }
 
@@ -108,7 +114,7 @@ public abstract class AbstractJMSOutputOperator extends JMSBase implements Opera
 
     mode = context.getValue(OperatorContext.PROCESSING_MODE);
 
-    if(mode==ProcessingMode.AT_MOST_ONCE){
+    if (mode == ProcessingMode.AT_MOST_ONCE) {
       //Batch must be cleared to avoid writing same data twice
       tupleBatch.clear();
     }
@@ -131,8 +137,7 @@ public abstract class AbstractJMSOutputOperator extends JMSBase implements Opera
     logger.debug("beginning teardown");
     try {
       store.disconnect();
-    }
-    catch (IOException ex) {
+    } catch (IOException ex) {
       throw new RuntimeException(ex);
     }
 
@@ -157,7 +162,7 @@ public abstract class AbstractJMSOutputOperator extends JMSBase implements Opera
   {
     logger.debug("Ending window {}", currentWindowId);
 
-    if(store.isExactlyOnce()) {
+    if (store.isExactlyOnce()) {
       //Store committed window and data in same transaction
       if (committedWindowId < currentWindowId) {
         store.storeCommittedWindowId(appId, operatorId, currentWindowId);
@@ -166,8 +171,7 @@ public abstract class AbstractJMSOutputOperator extends JMSBase implements Opera
 
       flushBatch();
       store.commitTransaction();
-    }
-    else {
+    } else {
       //For transactionable stores which cannot support exactly once, At least
       //once can be insured by for storing the data and then the committed window
       //id.
@@ -190,11 +194,10 @@ public abstract class AbstractJMSOutputOperator extends JMSBase implements Opera
   {
     logger.debug("flushing batch, batch size {}", tupleBatch.size());
 
-    for (Message message: messageBatch) {
+    for (Message message : messageBatch) {
       try {
         producer.send(message);
-      }
-      catch (JMSException ex) {
+      } catch (JMSException ex) {
         throw new RuntimeException(ex);
       }
     }
@@ -211,7 +214,7 @@ public abstract class AbstractJMSOutputOperator extends JMSBase implements Opera
    */
   protected void sendMessage(Object data)
   {
-    if(currentWindowId <= committedWindowId) {
+    if (currentWindowId <= committedWindowId) {
       return;
     }
 
@@ -245,8 +248,7 @@ public abstract class AbstractJMSOutputOperator extends JMSBase implements Opera
       producer = null;
 
       super.cleanup();
-    }
-    catch (JMSException ex) {
+    } catch (JMSException ex) {
       logger.error(null, ex);
     }
   }

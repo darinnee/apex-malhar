@@ -1,17 +1,20 @@
-/*
- * Copyright (c) 2015 DataTorrent, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.appdata.gpo;
 
@@ -31,7 +34,27 @@ import com.datatorrent.lib.util.PojoUtils.GetterBoolean;
 import com.datatorrent.lib.util.PojoUtils.GetterByte;
 import com.datatorrent.lib.util.PojoUtils.GetterChar;
 
-import static com.datatorrent.lib.appdata.gpo.GPOUtils.*;
+import static com.datatorrent.lib.appdata.gpo.GPOUtils.createGetters;
+import static com.datatorrent.lib.appdata.gpo.GPOUtils.createGettersObject;
+import static com.datatorrent.lib.appdata.gpo.GPOUtils.createGettersString;
+import static com.datatorrent.lib.appdata.gpo.GPOUtils.deserializeBoolean;
+import static com.datatorrent.lib.appdata.gpo.GPOUtils.deserializeByte;
+import static com.datatorrent.lib.appdata.gpo.GPOUtils.deserializeChar;
+import static com.datatorrent.lib.appdata.gpo.GPOUtils.deserializeDouble;
+import static com.datatorrent.lib.appdata.gpo.GPOUtils.deserializeFloat;
+import static com.datatorrent.lib.appdata.gpo.GPOUtils.deserializeInt;
+import static com.datatorrent.lib.appdata.gpo.GPOUtils.deserializeLong;
+import static com.datatorrent.lib.appdata.gpo.GPOUtils.deserializeShort;
+import static com.datatorrent.lib.appdata.gpo.GPOUtils.deserializeString;
+import static com.datatorrent.lib.appdata.gpo.GPOUtils.serializeBoolean;
+import static com.datatorrent.lib.appdata.gpo.GPOUtils.serializeByte;
+import static com.datatorrent.lib.appdata.gpo.GPOUtils.serializeChar;
+import static com.datatorrent.lib.appdata.gpo.GPOUtils.serializeDouble;
+import static com.datatorrent.lib.appdata.gpo.GPOUtils.serializeFloat;
+import static com.datatorrent.lib.appdata.gpo.GPOUtils.serializeInt;
+import static com.datatorrent.lib.appdata.gpo.GPOUtils.serializeLong;
+import static com.datatorrent.lib.appdata.gpo.GPOUtils.serializeShort;
+import static com.datatorrent.lib.appdata.gpo.GPOUtils.serializeString;
 
 /**
  * This is a helper class that reduces the need for switch statements in may utility method in {@link GPOUtils}.
@@ -41,17 +64,14 @@ abstract class GPOType
 {
   public static final GPOType[] GPO_TYPE_ARRAY;
 
-  static
-  {
+  static {
     GPO_TYPE_ARRAY = new GPOType[Type.values().length];
     Type[] types = Type.values();
 
-    for(int index = 0;
-        index < types.length;
-        index++) {
+    for (int index = 0; index < types.length; index++) {
       Type type = types[index];
 
-      switch(type) {
+      switch (type) {
         case BOOLEAN: {
           GPO_TYPE_ARRAY[index] = new BooleanT();
           break;
@@ -99,11 +119,19 @@ abstract class GPOType
   }
 
   public abstract void setFieldFromJSON(GPOMutable gpo, String field, JSONArray jo, int index);
-  public abstract void serializeJSONObject(JSONObject jo, GPOMutable gpo, String field, ResultFormatter resultFormatter) throws JSONException;
+
+  public abstract void serializeJSONObject(JSONObject jo, GPOMutable gpo, String field, ResultFormatter resultFormatter)
+      throws JSONException;
+
   public abstract void serialize(GPOMutable gpo, String field, byte[] sbytes, MutableInt offset);
+
   public abstract void deserialize(GPOMutable gpo, String Field, byte[] serializedGPO, MutableInt offset);
-  public abstract void buildGPOGetters(GPOGetters gpoGetters, List<String> fields, Map<String, String> fieldToGetter, Class<?> clazz);
+
+  public abstract void buildGPOGetters(GPOGetters gpoGetters, List<String> fields, Map<String, String> fieldToGetter,
+      Class<?> clazz);
+
   public abstract byte[] serialize(Object object);
+
   public abstract Object deserialize(byte[] object, MutableInt offset);
 
   public static class BooleanT extends GPOType
@@ -117,30 +145,28 @@ abstract class GPOType
     @Override
     public void setFieldFromJSON(GPOMutable gpo, String field, JSONArray jo, int index)
     {
-        Boolean val;
+      Boolean val;
 
-        try {
-          val = jo.getBoolean(index);
-        }
-        catch(JSONException ex) {
-          throw new IllegalArgumentException("The key " + field + " does not have a valid bool value.", ex);
-        }
+      try {
+        val = jo.getBoolean(index);
+      } catch (JSONException ex) {
+        throw new IllegalArgumentException("The key " + field + " does not have a valid bool value.", ex);
+      }
 
-        gpo.setFieldGeneric(field, val);
+      gpo.setFieldGeneric(field, val);
     }
 
     @Override
-    public void serializeJSONObject(JSONObject jo, GPOMutable gpo, String field, ResultFormatter resultFormatter) throws JSONException
+    public void serializeJSONObject(JSONObject jo, GPOMutable gpo, String field, ResultFormatter resultFormatter)
+        throws JSONException
     {
-        jo.put(field, gpo.getFieldBool(field));
+      jo.put(field, gpo.getFieldBool(field));
     }
 
     @Override
     public void serialize(GPOMutable gpo, String field, byte[] sbytes, MutableInt offset)
     {
-        serializeBoolean(gpo.getFieldBool(field),
-                         sbytes,
-                         offset);
+      serializeBoolean(gpo.getFieldBool(field), sbytes, offset);
     }
 
     @Override
@@ -153,17 +179,13 @@ abstract class GPOType
     @Override
     public void buildGPOGetters(GPOGetters gpoGetters, List<String> fields, Map<String, String> fieldToGetter, Class<?> clazz)
     {
-      gpoGetters.gettersBoolean = createGetters(fields,
-                                                fieldToGetter,
-                                                clazz,
-                                                boolean.class,
-                                                GetterBoolean.class);
+      gpoGetters.gettersBoolean = createGetters(fields, fieldToGetter, clazz, boolean.class, GetterBoolean.class);
     }
 
     @Override
     public byte[] serialize(Object object)
     {
-      return GPOUtils.serializeBoolean((Boolean) object);
+      return GPOUtils.serializeBoolean((Boolean)object);
     }
 
     @Override
@@ -188,12 +210,8 @@ abstract class GPOType
 
       try {
         val = jo.getLong(index);
-      }
-      catch(JSONException ex) {
-        throw new IllegalArgumentException("The key "
-                                           + field
-                                           + " does not have a valid long value.",
-                                           ex);
+      } catch (JSONException ex) {
+        throw new IllegalArgumentException("The key " + field + " does not have a valid long value.", ex);
       }
 
       gpo.setField(field, val);
@@ -208,9 +226,7 @@ abstract class GPOType
     @Override
     public void serialize(GPOMutable gpo, String field, byte[] sbytes, MutableInt offset)
     {
-      serializeChar(gpo.getFieldChar(field),
-                    sbytes,
-                    offset);
+      serializeChar(gpo.getFieldChar(field), sbytes, offset);
     }
 
     @Override
@@ -223,17 +239,13 @@ abstract class GPOType
     @Override
     public void buildGPOGetters(GPOGetters gpoGetters, List<String> fields, Map<String, String> fieldToGetter, Class<?> clazz)
     {
-      gpoGetters.gettersChar = createGetters(fields,
-                                             fieldToGetter,
-                                             clazz,
-                                             char.class,
-                                             GetterChar.class);
+      gpoGetters.gettersChar = createGetters(fields, fieldToGetter, clazz, char.class, GetterChar.class);
     }
 
     @Override
     public byte[] serialize(Object object)
     {
-      return GPOUtils.serializeChar((Character) object);
+      return GPOUtils.serializeChar((Character)object);
     }
 
     @Override
@@ -258,12 +270,8 @@ abstract class GPOType
 
       try {
         val = jo.getString(index);
-      }
-      catch(JSONException ex) {
-        throw new IllegalArgumentException("The key "
-                                           + field
-                                           + " does not have a valid string value.",
-                                           ex);
+      } catch (JSONException ex) {
+        throw new IllegalArgumentException("The key " + field + " does not have a valid string value.", ex);
       }
 
       gpo.setField(field, val);
@@ -278,9 +286,7 @@ abstract class GPOType
     @Override
     public void serialize(GPOMutable gpo, String field, byte[] sbytes, MutableInt offset)
     {
-      serializeString(gpo.getFieldString(field),
-                      sbytes,
-                      offset);
+      serializeString(gpo.getFieldString(field), sbytes, offset);
     }
 
     @Override
@@ -293,15 +299,13 @@ abstract class GPOType
     @Override
     public void buildGPOGetters(GPOGetters gpoGetters, List<String> fields, Map<String, String> fieldToGetter, Class<?> clazz)
     {
-      gpoGetters.gettersString = createGettersString(fields,
-                                                     fieldToGetter,
-                                                     clazz);
+      gpoGetters.gettersString = createGettersString(fields, fieldToGetter, clazz);
     }
 
     @Override
     public byte[] serialize(Object object)
     {
-      return GPOUtils.serializeString((String) object);
+      return GPOUtils.serializeString((String)object);
     }
 
     @Override
@@ -379,27 +383,18 @@ abstract class GPOType
 
       try {
         val = jo.getInt(index);
-      }
-      catch(JSONException ex) {
-        throw new IllegalArgumentException("The key "
-                                           + field
-                                           + " does not have a valid byte value.", ex);
+      } catch (JSONException ex) {
+        throw new IllegalArgumentException("The key " + field + " does not have a valid byte value.", ex);
       }
 
-      if(val < (int)Byte.MIN_VALUE) {
-        throw new IllegalArgumentException("The key "
-                                           + field
-                                           + " has a value "
-                                           + val
-                                           + " which is too small to fit into a byte.");
+      if (val < (int)Byte.MIN_VALUE) {
+        throw new IllegalArgumentException("The key " + field + " has a value " + val
+            + " which is too small to fit into a byte.");
       }
 
-      if(val > (int)Byte.MAX_VALUE) {
-        throw new IllegalArgumentException("The key "
-                                           + field
-                                           + " has a value "
-                                           + val
-                                           + " which is too larg to fit into a byte.");
+      if (val > (int)Byte.MAX_VALUE) {
+        throw new IllegalArgumentException("The key " + field + " has a value " + val
+            + " which is too larg to fit into a byte.");
       }
 
       gpo.setField(field, (byte)val);
@@ -414,9 +409,7 @@ abstract class GPOType
     @Override
     public void serialize(GPOMutable gpo, String field, byte[] sbytes, MutableInt offset)
     {
-      serializeByte(gpo.getFieldByte(field),
-                    sbytes,
-                    offset);
+      serializeByte(gpo.getFieldByte(field), sbytes, offset);
     }
 
     @Override
@@ -439,7 +432,7 @@ abstract class GPOType
     @Override
     public byte[] serialize(Object object)
     {
-      return GPOUtils.serializeByte((Byte) object);
+      return GPOUtils.serializeByte((Byte)object);
     }
 
     @Override
@@ -464,28 +457,18 @@ abstract class GPOType
 
       try {
         val = jo.getInt(index);
-      }
-      catch(JSONException ex) {
-        throw new IllegalArgumentException("The key "
-                                           + field
-                                           + " does not have a valid short value.",
-                                           ex);
+      } catch (JSONException ex) {
+        throw new IllegalArgumentException("The key " + field + " does not have a valid short value.", ex);
       }
 
-      if(val < (int)Short.MIN_VALUE) {
-        throw new IllegalArgumentException("The key "
-                                           + field
-                                           + " has a value "
-                                           + val
-                                           + " which is too small to fit into a short.");
+      if (val < (int)Short.MIN_VALUE) {
+        throw new IllegalArgumentException("The key " + field + " has a value " + val
+            + " which is too small to fit into a short.");
       }
 
-      if(val > (int)Short.MAX_VALUE) {
-        throw new IllegalArgumentException("The key "
-                                           + field
-                                           + " has a value "
-                                           + val
-                                           + " which is too large to fit into a short.");
+      if (val > (int)Short.MAX_VALUE) {
+        throw new IllegalArgumentException("The key " + field + " has a value " + val
+            + " which is too large to fit into a short.");
       }
 
       gpo.setField(field, (short)val);
@@ -500,9 +483,7 @@ abstract class GPOType
     @Override
     public void serialize(GPOMutable gpo, String field, byte[] sbytes, MutableInt offset)
     {
-      serializeShort(gpo.getFieldShort(field),
-                     sbytes,
-                     offset);
+      serializeShort(gpo.getFieldShort(field), sbytes, offset);
     }
 
     @Override
@@ -525,7 +506,7 @@ abstract class GPOType
     @Override
     public byte[] serialize(Object object)
     {
-      return GPOUtils.serializeShort((Short) object);
+      return GPOUtils.serializeShort((Short)object);
     }
 
     @Override
@@ -550,12 +531,8 @@ abstract class GPOType
 
       try {
         val = jo.getInt(index);
-      }
-      catch(JSONException ex) {
-        throw new IllegalArgumentException("The key "
-                                           + field
-                                           + " does not have a valid int value.",
-                                           ex);
+      } catch (JSONException ex) {
+        throw new IllegalArgumentException("The key " + field + " does not have a valid int value.", ex);
       }
 
       gpo.setField(field, val);
@@ -570,9 +547,7 @@ abstract class GPOType
     @Override
     public void serialize(GPOMutable gpo, String field, byte[] sbytes, MutableInt offset)
     {
-      serializeInt(gpo.getFieldInt(field),
-                   sbytes,
-                   offset);
+      serializeInt(gpo.getFieldInt(field), sbytes, offset);
     }
 
     @Override
@@ -595,7 +570,7 @@ abstract class GPOType
     @Override
     public byte[] serialize(Object object)
     {
-      return GPOUtils.serializeInt((Integer) object);
+      return GPOUtils.serializeInt((Integer)object);
     }
 
     @Override
@@ -620,12 +595,8 @@ abstract class GPOType
 
       try {
         val = jo.getLong(index);
-      }
-      catch(JSONException ex) {
-        throw new IllegalArgumentException("The key "
-                                           + field
-                                           + " does not have a valid long value.",
-                                           ex);
+      } catch (JSONException ex) {
+        throw new IllegalArgumentException("The key " + field + " does not have a valid long value.", ex);
       }
 
       gpo.setField(field, val);
@@ -640,9 +611,7 @@ abstract class GPOType
     @Override
     public void serialize(GPOMutable gpo, String field, byte[] sbytes, MutableInt offset)
     {
-      serializeLong(gpo.getFieldLong(field),
-                    sbytes,
-                    offset);
+      serializeLong(gpo.getFieldLong(field), sbytes, offset);
     }
 
     @Override
@@ -665,7 +634,7 @@ abstract class GPOType
     @Override
     public byte[] serialize(Object object)
     {
-      return GPOUtils.serializeLong((Long) object);
+      return GPOUtils.serializeLong((Long)object);
     }
 
     @Override
@@ -690,12 +659,8 @@ abstract class GPOType
 
       try {
         val = (float)jo.getDouble(index);
-      }
-      catch(JSONException ex) {
-        throw new IllegalArgumentException("The key "
-                                           + field
-                                           + " does not have a valid double value.",
-                                           ex);
+      } catch (JSONException ex) {
+        throw new IllegalArgumentException("The key " + field + " does not have a valid double value.", ex);
       }
 
       gpo.setFieldGeneric(field, val);
@@ -710,9 +675,7 @@ abstract class GPOType
     @Override
     public void serialize(GPOMutable gpo, String field, byte[] sbytes, MutableInt offset)
     {
-      serializeFloat(gpo.getFieldFloat(field),
-                     sbytes,
-                     offset);
+      serializeFloat(gpo.getFieldFloat(field), sbytes, offset);
     }
 
     @Override
@@ -725,17 +688,13 @@ abstract class GPOType
     @Override
     public void buildGPOGetters(GPOGetters gpoGetters, List<String> fields, Map<String, String> fieldToGetter, Class<?> clazz)
     {
-      gpoGetters.gettersFloat = createGetters(fields,
-                                              fieldToGetter,
-                                              clazz,
-                                              float.class,
-                                              PojoUtils.GetterFloat.class);
+      gpoGetters.gettersFloat = createGetters(fields, fieldToGetter, clazz, float.class, PojoUtils.GetterFloat.class);
     }
 
     @Override
     public byte[] serialize(Object object)
     {
-      return GPOUtils.serializeFloat((Float) object);
+      return GPOUtils.serializeFloat((Float)object);
     }
 
     @Override
@@ -760,12 +719,8 @@ abstract class GPOType
 
       try {
         val = jo.getDouble(index);
-      }
-      catch(JSONException ex) {
-        throw new IllegalArgumentException("The key "
-                                           + field
-                                           + " does not have a valid double value.",
-                                           ex);
+      } catch (JSONException ex) {
+        throw new IllegalArgumentException("The key " + field + " does not have a valid double value.", ex);
       }
 
       gpo.setFieldGeneric(field, val);
@@ -780,9 +735,7 @@ abstract class GPOType
     @Override
     public void serialize(GPOMutable gpo, String field, byte[] sbytes, MutableInt offset)
     {
-      serializeDouble(gpo.getFieldDouble(field),
-                      sbytes,
-                      offset);
+      serializeDouble(gpo.getFieldDouble(field), sbytes, offset);
     }
 
     @Override
@@ -795,17 +748,13 @@ abstract class GPOType
     @Override
     public void buildGPOGetters(GPOGetters gpoGetters, List<String> fields, Map<String, String> fieldToGetter, Class<?> clazz)
     {
-      gpoGetters.gettersDouble = createGetters(fields,
-                                               fieldToGetter,
-                                               clazz,
-                                               double.class,
-                                               PojoUtils.GetterDouble.class);
+      gpoGetters.gettersDouble = createGetters(fields, fieldToGetter, clazz, double.class, PojoUtils.GetterDouble.class);
     }
 
     @Override
     public byte[] serialize(Object object)
     {
-      return GPOUtils.serializeDouble((Double) object);
+      return GPOUtils.serializeDouble((Double)object);
     }
 
     @Override

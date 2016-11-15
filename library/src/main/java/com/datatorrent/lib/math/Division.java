@@ -1,26 +1,29 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.math;
 
 import java.util.ArrayList;
 
-import com.datatorrent.common.util.BaseOperator;
 import com.datatorrent.api.DefaultInputPort;
 import com.datatorrent.api.DefaultOutputPort;
 import com.datatorrent.api.annotation.OutputPortFieldAnnotation;
+import com.datatorrent.common.util.BaseOperator;
 
 /**
  * This operator does division metric on consecutive tuples on ports.
@@ -51,21 +54,21 @@ import com.datatorrent.api.annotation.OutputPortFieldAnnotation;
  */
 public class Division extends BaseOperator
 {
-	/**
-	 * Array to store numerator inputs during window.
-	 */
+  /**
+   * Array to store numerator inputs during window.
+   */
   private ArrayList<Number> numer = new ArrayList<Number>();
-  
+
   /**
    * Array to store denominator input during window.
    */
   private ArrayList<Number> denom = new ArrayList<Number>();
-  
+
   /**
    * Number of pair processed in current window.
    */
   private int index = 0;
-  
+
   /**
    * Numerator input port.
    */
@@ -80,7 +83,7 @@ public class Division extends BaseOperator
         if (loc > numer.size()) {
           loc = numer.size();
         }
-        emit(numer.get(loc-1), denom.get(loc-1));
+        emit(numer.get(loc - 1), denom.get(loc - 1));
         index++;
       }
     }
@@ -104,60 +107,60 @@ public class Division extends BaseOperator
         if (loc > numer.size()) {
           loc = numer.size();
         }
-        emit(numer.get(loc-1), denom.get(loc-1));
+        emit(numer.get(loc - 1), denom.get(loc - 1));
         index++;
       }
     }
   };
- 
+
   /**
-   * Long quotient output port. 
+   * Long quotient output port.
    */
   @OutputPortFieldAnnotation(optional = true)
   public final transient DefaultOutputPort<Long> longQuotient = new DefaultOutputPort<Long>();
-  
+
   /**
-   * Integer quotient output port. 
+   * Integer quotient output port.
    */
   @OutputPortFieldAnnotation(optional = true)
   public final transient DefaultOutputPort<Integer> integerQuotient = new DefaultOutputPort<Integer>();
-  
+
   /**
-   * Double quotient output port. 
+   * Double quotient output port.
    */
   @OutputPortFieldAnnotation(optional = true)
   public final transient DefaultOutputPort<Double> doubleQuotient = new DefaultOutputPort<Double>();
 
   /**
-   * Float quotient output port. 
+   * Float quotient output port.
    */
   @OutputPortFieldAnnotation(optional = true)
   public final transient DefaultOutputPort<Float> floatQuotient = new DefaultOutputPort<Float>();
-  
+
   /**
-   * Long remainder output port. 
+   * Long remainder output port.
    */
   @OutputPortFieldAnnotation(optional = true)
   public final transient DefaultOutputPort<Long> longRemainder = new DefaultOutputPort<Long>();
-  
+
   /**
-   * Integer remainder output port. 
+   * Integer remainder output port.
    */
   @OutputPortFieldAnnotation(optional = true)
   public final transient DefaultOutputPort<Integer> integerRemainder = new DefaultOutputPort<Integer>();
- 
+
   /**
-   * Double remainder output port. 
+   * Double remainder output port.
    */
   @OutputPortFieldAnnotation(optional = true)
   public final transient DefaultOutputPort<Double> doubleRemainder = new DefaultOutputPort<Double>();
-  
+
   /**
-   * Float remainder output port. 
+   * Float remainder output port.
    */
   @OutputPortFieldAnnotation(optional = true)
   public final transient DefaultOutputPort<Float> floatRemainder = new DefaultOutputPort<Float>();
-  
+
   /**
    * Error data output port that emits a string.
    */

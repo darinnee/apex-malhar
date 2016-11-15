@@ -1,17 +1,20 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.multiwindow;
 
@@ -25,10 +28,12 @@ import java.util.PriorityQueue;
 
 import javax.validation.constraints.NotNull;
 
+import org.apache.commons.lang.ClassUtils;
+
+import com.google.common.base.Function;
+
 import com.datatorrent.api.DefaultOutputPort;
 import com.datatorrent.api.annotation.OutputPortFieldAnnotation;
-import com.google.common.base.Function;
-import org.apache.commons.lang.ClassUtils;
 
 /**
  *
@@ -99,7 +104,7 @@ public class SortedMovingWindow<T, K> extends AbstractSlidingWindow<T, List<T>>
   {
     super.endWindow();
     tuplesInCurrentStreamWindow = new LinkedList<T>();
-    if(lastExpiredWindowState == null){
+    if (lastExpiredWindowState == null) {
       // not ready to emit value or empty in a certain window
       return;
     }
@@ -112,7 +117,7 @@ public class SortedMovingWindow<T, K> extends AbstractSlidingWindow<T, List<T>>
         int k = 0;
         if (comparator == null) {
           if (expiredTuple instanceof Comparable) {
-            k = ((Comparable<T>) expiredTuple).compareTo(minElemInSortedList);
+            k = ((Comparable<T>)expiredTuple).compareTo(minElemInSortedList);
           } else {
             errorOutput.emit(expiredTuple);
             throw new IllegalArgumentException("Operator \"" + ClassUtils.getShortClassName(this.getClass()) + "\" encounters an invalid tuple " + expiredTuple + "\nNeither the tuple is comparable Nor Comparator is specified!");

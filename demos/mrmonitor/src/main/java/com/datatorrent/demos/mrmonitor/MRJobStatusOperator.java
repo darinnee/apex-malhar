@@ -1,21 +1,28 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.demos.mrmonitor;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 
 import org.codehaus.jettison.json.JSONArray;
@@ -104,8 +111,7 @@ public class MRJobStatusOperator implements Operator, IdleTimeHandler
           outputJsonObject.put("id", mrStatusObj.getJobId());
           outputJsonObject.put("removed", "true");
           output.emit(outputJsonObject.toString());
-        }
-        catch (JSONException e) {
+        } catch (JSONException e) {
           LOG.warn("Error creating JSON: {}", e.getMessage());
         }
         return;
@@ -120,8 +126,7 @@ public class MRJobStatusOperator implements Operator, IdleTimeHandler
       }
       if (mrStatusObj.getHadoopVersion() == 2) {
         getJsonForJob(mrStatusObj);
-      }
-      else if (mrStatusObj.getHadoopVersion() == 1) {
+      } else if (mrStatusObj.getHadoopVersion() == 1) {
         getJsonForLegacyJob(mrStatusObj);
       }
       mrStatusObj.setStatusHistoryCount(statusHistoryTime);
@@ -201,8 +206,7 @@ public class MRJobStatusOperator implements Operator, IdleTimeHandler
     if (jsonObj != null) {
       if (statusObj.getMetricObject() == null) {
         statusObj.setMetricObject(new TaskObject(jsonObj));
-      }
-      else if (!statusObj.getMetricObject().getJsonString().equalsIgnoreCase(jsonObj.toString())) {
+      } else if (!statusObj.getMetricObject().getJsonString().equalsIgnoreCase(jsonObj.toString())) {
         statusObj.getMetricObject().setJson(jsonObj);
         statusObj.getMetricObject().setModified(true);
       }
@@ -249,8 +253,7 @@ public class MRJobStatusOperator implements Operator, IdleTimeHandler
               continue;
             }
             reduceTaskOject.put(taskObj.getString(Constants.TASK_ID), new TaskObject(taskObj));
-          }
-          else {
+          } else {
             if (mapTaskOject.get(taskObj.getString(Constants.TASK_ID)) != null) {
               TaskObject tempTaskObj = mapTaskOject.get(taskObj.getString(Constants.TASK_ID));
               if (tempTaskObj.getJsonString().equals(taskObj.toString())) {
@@ -266,8 +269,7 @@ public class MRJobStatusOperator implements Operator, IdleTimeHandler
         }
         statusObj.setMapJsonObject(mapTaskOject);
         statusObj.setReduceJsonObject(reduceTaskOject);
-      }
-      catch (Exception e) {
+      } catch (Exception e) {
         LOG.info("exception: {}", e.getMessage());
       }
     }
@@ -321,12 +323,11 @@ public class MRJobStatusOperator implements Operator, IdleTimeHandler
   {
     try {
       JSONObject jobJson = statusObj.getJsonObject();
-      int totalTasks = ((JSONObject) ((JSONObject) jobJson.get(type + "TaskSummary")).get("taskStats")).getInt("numTotalTasks");
+      int totalTasks = ((JSONObject)((JSONObject)jobJson.get(type + "TaskSummary")).get("taskStats")).getInt("numTotalTasks");
       Map<String, TaskObject> taskMap;
       if (type.equalsIgnoreCase("map")) {
         taskMap = statusObj.getMapJsonObject();
-      }
-      else {
+      } else {
         taskMap = statusObj.getReduceJsonObject();
       }
 
@@ -368,12 +369,10 @@ public class MRJobStatusOperator implements Operator, IdleTimeHandler
 
       if (type.equalsIgnoreCase("map")) {
         statusObj.setMapJsonObject(taskMap);
-      }
-      else {
+      } else {
         statusObj.setReduceJsonObject(taskMap);
       }
-    }
-    catch (Exception e) {
+    } catch (Exception e) {
       LOG.info(e.getMessage());
     }
 
@@ -384,8 +383,7 @@ public class MRJobStatusOperator implements Operator, IdleTimeHandler
   {
     try {
       Thread.sleep(sleepTime);//
-    }
-    catch (InterruptedException ie) {
+    } catch (InterruptedException ie) {
       // If this thread was intrrupted by nother thread
     }
     if (!iterator.hasNext()) {
@@ -396,8 +394,7 @@ public class MRJobStatusOperator implements Operator, IdleTimeHandler
       MRStatusObject obj = iterator.next();
       if (obj.getHadoopVersion() == 2) {
         getJsonForJob(obj);
-      }
-      else if (obj.getHadoopVersion() == 1) {
+      } else if (obj.getHadoopVersion() == 1) {
         getJsonForLegacyJob(obj);
       }
     }
@@ -462,8 +459,7 @@ public class MRJobStatusOperator implements Operator, IdleTimeHandler
       outputJsonObject.put("tasks", arr);
       reduceOutput.emit(outputJsonObject.toString());
       obj.setRetrials(0);
-    }
-    catch (Exception e) {
+    } catch (Exception e) {
       LOG.warn("error creating json {}", e.getMessage());
     }
 
@@ -540,17 +536,14 @@ public class MRJobStatusOperator implements Operator, IdleTimeHandler
         if (!modified) {
           if (obj.getRetrials() >= maxRetrials) {
             delList.add(obj.getJobId());
-          }
-          else {
+          } else {
             obj.setRetrials(obj.getRetrials() + 1);
           }
-        }
-        else {
+        } else {
           obj.setRetrials(0);
         }
       }
-    }
-    catch (Exception ex) {
+    } catch (Exception ex) {
       LOG.warn("error creating json {}", ex.getMessage());
     }
 

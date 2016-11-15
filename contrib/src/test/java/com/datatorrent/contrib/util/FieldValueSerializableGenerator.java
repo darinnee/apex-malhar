@@ -1,17 +1,20 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.contrib.util;
 
@@ -32,18 +35,18 @@ import com.datatorrent.lib.util.PojoUtils.Setter;
 
 public class FieldValueSerializableGenerator< T extends FieldInfo> extends FieldValueGenerator<T>
 {
-  
+
   public static < T extends FieldInfo > FieldValueSerializableGenerator<T> getFieldValueGenerator(final Class<?> clazz, List<T> fieldInfos)
   {
     return new FieldValueSerializableGenerator(clazz, fieldInfos);
   }
-  
-  
+
+
   private static final Logger logger = LoggerFactory.getLogger( FieldValueGenerator.class );
   //it's better to same kryo instance for both de/serialize
   private Kryo _kryo = null;
   private Class<?> clazz;
-  
+
   private FieldValueSerializableGenerator(){}
 
   public FieldValueSerializableGenerator(Class<?> clazz, List<T> fieldInfos)
@@ -55,7 +58,7 @@ public class FieldValueSerializableGenerator< T extends FieldInfo> extends Field
   /**
    * get the object which is serialized.
    * this method will convert the object into a map from column name to column value and then serialize it
-   * 
+   *
    * @param obj
    * @return
    */
@@ -63,7 +66,7 @@ public class FieldValueSerializableGenerator< T extends FieldInfo> extends Field
   {
   //if don't have field information, just convert the whole object to byte[]
     Object convertObj = obj;
-    
+
     //if fields are specified, convert to map and then convert map to byte[]
     if( fieldGetterMap != null && !fieldGetterMap.isEmpty() )
     {
@@ -79,15 +82,15 @@ public class FieldValueSerializableGenerator< T extends FieldInfo> extends Field
     return os.toByteArray();
   }
 
-  
+
   public Object deserializeObject( byte[] bytes )
   {
     Object obj = getKryo().readClassAndObject( new Input( bytes ) );
-    
+
 
     if( fieldGetterMap == null || fieldGetterMap.isEmpty() )
       return obj;
-    
+
     // the obj in fact is a map, convert from map to object
     try
     {
@@ -111,7 +114,7 @@ public class FieldValueSerializableGenerator< T extends FieldInfo> extends Field
       return obj;
     }
   }
-  
+
   protected Kryo getKryo()
   {
     if( _kryo == null )
@@ -120,6 +123,7 @@ public class FieldValueSerializableGenerator< T extends FieldInfo> extends Field
       {
         if( _kryo == null )
           _kryo = new Kryo();
+        _kryo.setClassLoader(clazz.getClassLoader());
       }
     }
     return _kryo;

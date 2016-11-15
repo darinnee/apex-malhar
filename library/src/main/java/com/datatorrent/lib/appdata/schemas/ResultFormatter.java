@@ -1,17 +1,20 @@
-/*
- * Copyright (c) 2015 DataTorrent, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.appdata.schemas;
 
@@ -111,34 +114,28 @@ public class ResultFormatter implements Serializable
   {
     Type type = Type.CLASS_TO_TYPE.get(object.getClass());
 
-    if(type == null) {
+    if (type == null) {
       return object.toString();
     }
 
-    switch(type) {
-      case FLOAT:
-      {
-        return format((float) ((Float) object));
+    switch (type) {
+      case FLOAT: {
+        return format((float)((Float)object));
       }
-      case DOUBLE:
-      {
-        return format((double) ((Double) object));
+      case DOUBLE: {
+        return format((double)((Double)object));
       }
-      case BYTE:
-      {
-        return format((byte) ((Byte) object));
+      case BYTE: {
+        return format((byte)((Byte)object));
       }
-      case SHORT:
-      {
-        return format((short) ((Short) object));
+      case SHORT: {
+        return format((short)((Short)object));
       }
-      case INTEGER:
-      {
-        return format((int) ((Integer) object));
+      case INTEGER: {
+        return format((int)((Integer)object));
       }
-      case LONG:
-      {
-        return format((long) ((Long) object));
+      case LONG: {
+        return format((long)((Long)object));
       }
       default:
         return object.toString();
@@ -154,7 +151,7 @@ public class ResultFormatter implements Serializable
   {
     DecimalFormat df = getFloatFormat();
 
-    if(df != null) {
+    if (df != null) {
       return df.format(val);
     }
 
@@ -170,7 +167,7 @@ public class ResultFormatter implements Serializable
   {
     DecimalFormat df = getDoubleFormat();
 
-    if(df != null) {
+    if (df != null) {
       return df.format(val);
     }
 
@@ -186,7 +183,7 @@ public class ResultFormatter implements Serializable
   {
     DecimalFormat df = getByteFormat();
 
-    if(df != null) {
+    if (df != null) {
       return df.format(val);
     }
 
@@ -202,7 +199,7 @@ public class ResultFormatter implements Serializable
   {
     DecimalFormat df = getShortFormat();
 
-    if(df != null) {
+    if (df != null) {
       return df.format(val);
     }
 
@@ -218,7 +215,7 @@ public class ResultFormatter implements Serializable
   {
     DecimalFormat df = getIntFormat();
 
-    if(df != null) {
+    if (df != null) {
       return df.format(val);
     }
 
@@ -234,7 +231,7 @@ public class ResultFormatter implements Serializable
   {
     DecimalFormat df = getLongFormat();
 
-    if(df != null) {
+    if (df != null) {
       return df.format(val);
     }
 
@@ -247,7 +244,7 @@ public class ResultFormatter implements Serializable
    */
   public DecimalFormat getFloatFormat()
   {
-    if(floatFormat == null && floatFormatString != null) {
+    if (floatFormat == null && floatFormatString != null) {
       floatFormat = new DecimalFormat(floatFormatString);
     }
 
@@ -260,7 +257,7 @@ public class ResultFormatter implements Serializable
    */
   public DecimalFormat getDoubleFormat()
   {
-    if(doubleFormat == null && doubleFormatString != null) {
+    if (doubleFormat == null && doubleFormatString != null) {
       doubleFormat = new DecimalFormat(doubleFormatString);
     }
 
@@ -273,7 +270,7 @@ public class ResultFormatter implements Serializable
    */
   public DecimalFormat getByteFormat()
   {
-    if(byteFormat == null && byteFormatString != null) {
+    if (byteFormat == null && byteFormatString != null) {
       byteFormat = new DecimalFormat(byteFormatString);
     }
 
@@ -286,7 +283,7 @@ public class ResultFormatter implements Serializable
    */
   public DecimalFormat getShortFormat()
   {
-    if(shortFormat == null && shortFormatString != null) {
+    if (shortFormat == null && shortFormatString != null) {
       shortFormat = new DecimalFormat(shortFormatString);
     }
 
@@ -299,7 +296,7 @@ public class ResultFormatter implements Serializable
    */
   public DecimalFormat getIntFormat()
   {
-    if(intFormat == null && intFormatString != null) {
+    if (intFormat == null && intFormatString != null) {
       intFormat = new DecimalFormat(intFormatString);
     }
 
@@ -312,7 +309,7 @@ public class ResultFormatter implements Serializable
    */
   public DecimalFormat getLongFormat()
   {
-    if(longFormat == null && longFormatString != null) {
+    if (longFormat == null && longFormatString != null) {
       longFormat = new DecimalFormat(longFormatString);
     }
 

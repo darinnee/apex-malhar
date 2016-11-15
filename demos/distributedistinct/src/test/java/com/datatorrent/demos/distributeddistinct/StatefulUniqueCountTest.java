@@ -1,33 +1,46 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.demos.distributeddistinct;
 
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Properties;
 
-import org.apache.hadoop.conf.Configuration;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.datatorrent.api.*;
+import org.apache.hadoop.conf.Configuration;
+
 import com.datatorrent.api.Context.OperatorContext;
-import com.datatorrent.demos.distributeddistinct.IntegerUniqueValueCountAppender;
+import com.datatorrent.api.DAG;
+import com.datatorrent.api.DefaultInputPort;
+import com.datatorrent.api.DefaultOutputPort;
+import com.datatorrent.api.InputOperator;
+import com.datatorrent.api.LocalMode;
+import com.datatorrent.api.StreamingApplication;
+import com.datatorrent.common.util.BaseOperator;
 
 import com.datatorrent.lib.algo.UniqueValueCount;
 import com.datatorrent.lib.util.KeyValPair;
@@ -38,7 +51,7 @@ public class StatefulUniqueCountTest
   public static final String INMEM_DB_URL = "jdbc:hsqldb:mem:test;sql.syntax_mys=true";
   public static final String INMEM_DB_DRIVER = "org.hsqldb.jdbc.JDBCDriver";
   public static final String TABLE_NAME = "Test_Lookup_Cache";
-  
+
   static class KeyGen implements InputOperator
   {
 
@@ -92,7 +105,8 @@ public class StatefulUniqueCountTest
     private static final String INMEM_DB_DRIVER = "org.hsqldb.jdbc.JDBCDriver";
     protected static final String TABLE_NAME = "Test_Lookup_Cache";
 
-    public final transient DefaultInputPort<Object> input = new DefaultInputPort<Object>() {
+    public final transient DefaultInputPort<Object> input = new DefaultInputPort<Object>()
+    {
       @Override
       public void process(Object tuple)
       {
@@ -190,9 +204,10 @@ public class StatefulUniqueCountTest
       dag.addStream("ResultsOut", uniqueOut, verifyTable.input);
     }
   }
-  
+
   @BeforeClass
-  public static void setup(){
+  public static void setup()
+  {
     try {
       Class.forName(INMEM_DB_DRIVER).newInstance();
       Connection con = DriverManager.getConnection(INMEM_DB_URL, new Properties());

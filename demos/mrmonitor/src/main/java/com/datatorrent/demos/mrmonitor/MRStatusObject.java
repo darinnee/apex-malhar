@@ -1,17 +1,20 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.demos.mrmonitor;
 
@@ -146,7 +149,8 @@ public class MRStatusObject
     virtualMemoryStatusHistory = new LinkedList<String>();
     cpuStatusHistory = new LinkedList<String>();
     statusScheduler = Executors.newScheduledThreadPool(1);
-    statusScheduler.scheduleAtFixedRate(new Runnable() {
+    statusScheduler.scheduleAtFixedRate(new Runnable()
+    {
       @Override
       public void run()
       {
@@ -330,12 +334,15 @@ public class MRStatusObject
   @Override
   public boolean equals(Object that)
   {
-    if (this == that)
+    if (this == that) {
       return true;
-    if (!(that instanceof MRStatusObject))
+    }
+    if (!(that instanceof MRStatusObject)) {
       return false;
-    if (this.hashCode() == that.hashCode())
+    }
+    if (this.hashCode() == that.hashCode()) {
       return true;
+    }
     return false;
   }
 
@@ -440,7 +447,7 @@ public class MRStatusObject
 
     /**
      * This returns the task information as json
-     * 
+     *
      * @return
      */
     public JSONObject getJson()
@@ -450,7 +457,7 @@ public class MRStatusObject
 
     /**
      * This stores the task information as json
-     * 
+     *
      * @param json
      */
     public void setJson(JSONObject json)
@@ -460,7 +467,7 @@ public class MRStatusObject
 
     /**
      * This returns if the json object has been modified
-     * 
+     *
      * @return
      */
     public boolean isModified()
@@ -470,7 +477,7 @@ public class MRStatusObject
 
     /**
      * This sets if the json object is modified
-     * 
+     *
      * @param modified
      */
     public void setModified(boolean modified)
@@ -480,7 +487,7 @@ public class MRStatusObject
 
     /**
      * This returns the string format of the json object
-     * 
+     *
      * @return
      */
     public String getJsonString()

@@ -1,64 +1,37 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.contrib.kafka;
 
 import com.datatorrent.api.Context.OperatorContext;
 import com.datatorrent.api.DefaultPartition;
 import com.datatorrent.api.InputOperator;
+import com.datatorrent.api.Operator;
 import com.datatorrent.api.Operator.ActivationListener;
-import com.datatorrent.api.Operator.CheckpointListener;
 import com.datatorrent.api.Partitioner;
 import com.datatorrent.api.Stats;
 import com.datatorrent.api.StatsListener;
 import com.datatorrent.api.annotation.OperatorAnnotation;
 import com.datatorrent.api.annotation.Stateless;
-
-import static com.datatorrent.contrib.kafka.KafkaConsumer.KafkaMeterStatsUtil.getOffsetsForPartitions;
-import static com.datatorrent.contrib.kafka.KafkaConsumer.KafkaMeterStatsUtil.get_1minMovingAvgParMap;
-
-import com.datatorrent.lib.io.IdempotentStorageManager;
-import com.esotericsoftware.kryo.Kryo;
-import com.esotericsoftware.kryo.io.Input;
-import com.esotericsoftware.kryo.io.Output;
+import com.datatorrent.lib.util.KryoCloneUtils;
 import com.google.common.base.Joiner;
-import com.google.common.base.Predicate;
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
-import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
-
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.lang.reflect.Array;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
-import javax.validation.Valid;
-import javax.validation.constraints.Min;
-import javax.validation.constraints.NotNull;
 
 import kafka.api.FetchRequest;
 import kafka.api.FetchRequestBuilder;
@@ -69,10 +42,30 @@ import kafka.javaapi.consumer.SimpleConsumer;
 import kafka.message.Message;
 import kafka.message.MessageAndOffset;
 
+import org.apache.apex.malhar.lib.wal.WindowDataManager;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.MutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import javax.validation.Valid;
+import javax.validation.constraints.Min;
+import javax.validation.constraints.NotNull;
+
+import java.io.IOException;
+import java.lang.reflect.Array;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import static com.datatorrent.contrib.kafka.KafkaConsumer.KafkaMeterStatsUtil.getOffsetsForPartitions;
 
 /**
  * This is a base implementation of a Kafka input operator, which consumes data from Kafka message bus.&nbsp;
@@ -131,26 +124,38 @@ import org.slf4j.LoggerFactory;
  */
 
 @OperatorAnnotation(partitionable = true)
-public abstract class AbstractKafkaInputOperator<K extends KafkaConsumer> implements InputOperator, ActivationListener<OperatorContext>, CheckpointListener, Partitioner<AbstractKafkaInputOperator<K>>, StatsListener
+public abstract class AbstractKafkaInputOperator<K extends KafkaConsumer> implements InputOperator, ActivationListener<OperatorContext>, Operator.CheckpointNotificationListener, Partitioner<AbstractKafkaInputOperator<K>>, StatsListener
 {
   private static final Logger logger = LoggerFactory.getLogger(AbstractKafkaInputOperator.class);
 
   @Min(1)
   private int maxTuplesPerWindow = Integer.MAX_VALUE;
+  @Min(1)
+  private long maxTotalMsgSizePerWindow = Long.MAX_VALUE;
   private transient int emitCount = 0;
-  protected IdempotentStorageManager idempotentStorageManager;
+  private transient long emitTotalMsgSize = 0;
+  protected WindowDataManager windowDataManager;
   protected transient long currentWindowId;
   protected transient int operatorId;
   protected final transient Map<KafkaPartition, MutablePair<Long, Integer>> currentWindowRecoveryState;
-  protected transient Map<KafkaPartition, Long> offsetStats = new HashMap<KafkaPartition, Long>();
+  /**
+   * Offsets that are checkpointed for recovery
+   */
+  protected Map<KafkaPartition, Long> offsetStats = new HashMap<KafkaPartition, Long>();
+  /**
+   * offset history with window id
+   */
+  protected transient List<Pair<Long, Map<KafkaPartition, Long>>> offsetTrackHistory = new LinkedList<>();
   private transient OperatorContext context = null;
   // By default the partition policy is 1:1
   public PartitionStrategy strategy = PartitionStrategy.ONE_TO_ONE;
 
-  // default resource is unlimited in terms of msgs per second
+  // Deprecated: Please don't use this property.
+  @Deprecated
   private long msgRateUpperBound = Long.MAX_VALUE;
 
-  // default resource is unlimited in terms of bytes per second
+  // Deprecated: Please don't use this property.
+  @Deprecated
   private long byteRateUpperBound = Long.MAX_VALUE;
 
   // Store the current operator partition topology
@@ -175,6 +180,8 @@ public abstract class AbstractKafkaInputOperator<K extends KafkaConsumer> implem
   // A list store the newly discovered partitions
   private transient List<KafkaPartition> newWaitingPartition = new LinkedList<KafkaPartition>();
 
+  private transient KafkaConsumer.KafkaMessage pendingMessage;
+
   @Min(1)
   private int initialPartitionCount = 1;
 
@@ -184,7 +191,7 @@ public abstract class AbstractKafkaInputOperator<K extends KafkaConsumer> implem
 
   public AbstractKafkaInputOperator()
   {
-    idempotentStorageManager = new IdempotentStorageManager.NoopIdempotentStorageManager();
+    windowDataManager = new WindowDataManager.NoopWindowDataManager();
     currentWindowRecoveryState = new HashMap<KafkaPartition, MutablePair<Long, Integer>>();
   }
 
@@ -193,6 +200,14 @@ public abstract class AbstractKafkaInputOperator<K extends KafkaConsumer> implem
    *
    */
   protected abstract void emitTuple(Message message);
+
+  /**
+   * Concrete class derived from KafkaInputOpertor should implement this method if it wants to access kafka offset and partitionId along with kafka message.
+   */
+  protected void emitTuple(KafkaConsumer.KafkaMessage message)
+  {
+    emitTuple(message.msg);
+  }
 
   public int getMaxTuplesPerWindow()
   {
@@ -204,23 +219,53 @@ public abstract class AbstractKafkaInputOperator<K extends KafkaConsumer> implem
     this.maxTuplesPerWindow = maxTuplesPerWindow;
   }
 
+  /**
+   * Get the maximum total size of messages to be transmitted per window. When the sum of the message sizes transmitted
+   * in a window reaches this limit no more messages are transmitted till the next window. There is one exception
+   * however, if the size of the first message in a window is greater than the limit it is still transmitted so that the
+   * processing of messages doesn't get stuck.
+   * @return The maximum for the total size
+     */
+  public long getMaxTotalMsgSizePerWindow() {
+    return maxTotalMsgSizePerWindow;
+  }
+
+  /**
+   * Set the maximum total size of messages to be transmitted per window. See {@link #getMaxTotalMsgSizePerWindow()} for
+   * more description about this property.
+   *
+   * @param maxTotalMsgSizePerWindow The maximum for the total size
+     */
+  public void setMaxTotalMsgSizePerWindow(long maxTotalMsgSizePerWindow) {
+    this.maxTotalMsgSizePerWindow = maxTotalMsgSizePerWindow;
+  }
+
   @Override
   public void setup(OperatorContext context)
   {
     logger.debug("consumer {} topic {} cacheSize {}", consumer, consumer.getTopic(), consumer.getCacheSize());
     consumer.create();
+    // reset the offsets to checkpointed one
+    if (consumer instanceof SimpleKafkaConsumer && !offsetStats.isEmpty()) {
+      Map<KafkaPartition, Long> currentOffsets = new HashMap<>();
+      // Increment the offsets and set it to consumer
+      for (Map.Entry<KafkaPartition, Long> e: offsetStats.entrySet()) {
+        currentOffsets.put(e.getKey(), e.getValue() + 1);
+      }
+      ((SimpleKafkaConsumer)consumer).resetOffset(currentOffsets);
+    }
     this.context = context;
     operatorId = context.getId();
-    if(consumer instanceof HighlevelKafkaConsumer && !(idempotentStorageManager instanceof IdempotentStorageManager.NoopIdempotentStorageManager)) {
+    if(consumer instanceof HighlevelKafkaConsumer && !(windowDataManager instanceof WindowDataManager.NoopWindowDataManager)) {
       throw new RuntimeException("Idempotency is not supported for High Level Kafka Consumer");
     }
-    idempotentStorageManager.setup(context);
+    windowDataManager.setup(context);
   }
 
   @Override
   public void teardown()
   {
-    idempotentStorageManager.teardown();
+    windowDataManager.teardown();
     consumer.teardown();
   }
 
@@ -228,17 +273,19 @@ public abstract class AbstractKafkaInputOperator<K extends KafkaConsumer> implem
   public void beginWindow(long windowId)
   {
     currentWindowId = windowId;
-    if (windowId <= idempotentStorageManager.getLargestRecoveryWindow()) {
+    if (windowId <= windowDataManager.getLargestCompletedWindow()) {
       replay(windowId);
     }
     emitCount = 0;
+    emitTotalMsgSize = 0;
   }
 
   protected void replay(long windowId)
   {
     try {
       @SuppressWarnings("unchecked")
-      Map<KafkaPartition, MutablePair<Long, Integer>> recoveredData = (Map<KafkaPartition, MutablePair<Long, Integer>>) idempotentStorageManager.load(operatorId, windowId);
+      Map<KafkaPartition, MutablePair<Long, Integer>> recoveredData = (Map<KafkaPartition, MutablePair<Long, Integer>>)
+          windowDataManager.retrieve(windowId);
       if (recoveredData != null) {
         Map<String, List<PartitionMetadata>> pms = KafkaMetadataUtil.getPartitionsForTopic(getConsumer().brokers, getConsumer().topic);
         if (pms != null) {
@@ -268,7 +315,8 @@ public abstract class AbstractKafkaInputOperator<K extends KafkaConsumer> implem
             FetchResponse fetchResponse = ksc.fetch(req);
             Integer count = 0;
             for (MessageAndOffset msg : fetchResponse.messageSet(consumer.topic, kp.getPartitionId())) {
-              emitTuple(msg.message());
+              KafkaConsumer.KafkaMessage kafkaMessage = new KafkaConsumer.KafkaMessage(kp, msg.message(), msg.offset());
+              emitTuple(kafkaMessage);
               offsetStats.put(kp, msg.offset());
               count = count + 1;
               if (count.equals(rc.getValue().right))
@@ -277,7 +325,7 @@ public abstract class AbstractKafkaInputOperator<K extends KafkaConsumer> implem
           }
         }
       }
-      if(windowId == idempotentStorageManager.getLargestRecoveryWindow()) {
+      if(windowId == windowDataManager.getLargestCompletedWindow()) {
         // Start the consumer at the largest recovery window
         SimpleKafkaConsumer cons = (SimpleKafkaConsumer)getConsumer();
         // Set the offset positions to the consumer
@@ -298,13 +346,14 @@ public abstract class AbstractKafkaInputOperator<K extends KafkaConsumer> implem
   @Override
   public void endWindow()
   {
-    if (currentWindowId > idempotentStorageManager.getLargestRecoveryWindow()) {
+    //TODO depends on APEX-78 only needs to keep the history of windows needs to be commit
+    if (getConsumer() instanceof SimpleKafkaConsumer) {
+      Map<KafkaPartition, Long> carryOn = new HashMap<>(offsetStats);
+      offsetTrackHistory.add(Pair.of(currentWindowId, carryOn));
+    }
+    if (currentWindowId > windowDataManager.getLargestCompletedWindow()) {
       try {
-        if((getConsumer() instanceof  SimpleKafkaConsumer)) {
-          SimpleKafkaConsumer cons = (SimpleKafkaConsumer) getConsumer();
-          context.setCounters(cons.getConsumerStats(offsetStats));
-        }
-        idempotentStorageManager.save(currentWindowRecoveryState, operatorId, currentWindowId);
+        windowDataManager.save(currentWindowRecoveryState, currentWindowId);
       }
       catch (IOException e) {
         throw new RuntimeException("saving recovery", e);
@@ -321,10 +370,33 @@ public abstract class AbstractKafkaInputOperator<K extends KafkaConsumer> implem
   }
 
   @Override
+  public void beforeCheckpoint(long windowId)
+  {
+
+  }
+
+  @Override
   public void committed(long windowId)
   {
+    if ((getConsumer() instanceof  SimpleKafkaConsumer)) {
+      SimpleKafkaConsumer cons = (SimpleKafkaConsumer)getConsumer();
+      for (Iterator<Pair<Long, Map<KafkaPartition, Long>>> iter = offsetTrackHistory.iterator(); iter.hasNext(); ) {
+        Pair<Long, Map<KafkaPartition, Long>> item = iter.next();
+        if (item.getLeft() < windowId) {
+          iter.remove();
+          continue;
+        } else if (item.getLeft() == windowId) {
+          if (logger.isDebugEnabled()) {
+            logger.debug("report offsets {} ", Joiner.on(';').withKeyValueSeparator("=").join(item.getRight()));
+          }
+          context.setCounters(cons.getConsumerStats(item.getRight()));
+        }
+        break;
+      }
+    }
+
     try {
-      idempotentStorageManager.deleteUpTo(operatorId, windowId);
+      windowDataManager.committed(windowId);
     }
     catch (IOException e) {
       throw new RuntimeException("deleting state", e);
@@ -334,7 +406,8 @@ public abstract class AbstractKafkaInputOperator<K extends KafkaConsumer> implem
   @Override
   public void activate(OperatorContext ctx)
   {
-    if (context.getValue(OperatorContext.ACTIVATION_WINDOW_ID) != Stateless.WINDOW_ID && context.getValue(OperatorContext.ACTIVATION_WINDOW_ID) < idempotentStorageManager.getLargestRecoveryWindow()) {
+    if (context.getValue(OperatorContext.ACTIVATION_WINDOW_ID) != Stateless.WINDOW_ID &&
+        context.getValue(OperatorContext.ACTIVATION_WINDOW_ID) < windowDataManager.getLargestCompletedWindow()) {
       // If it is a replay state, don't start the consumer
       return;
     }
@@ -353,19 +426,31 @@ public abstract class AbstractKafkaInputOperator<K extends KafkaConsumer> implem
   @Override
   public void emitTuples()
   {
-    if (currentWindowId <= idempotentStorageManager.getLargestRecoveryWindow()) {
+    if (currentWindowId <= windowDataManager.getLargestCompletedWindow()) {
       return;
     }
-    int count = consumer.messageSize();
+    int count = consumer.messageSize() + ((pendingMessage != null) ? 1 : 0);
     if (maxTuplesPerWindow > 0) {
       count = Math.min(count, maxTuplesPerWindow - emitCount);
     }
+    KafkaConsumer.KafkaMessage message = null;
     for (int i = 0; i < count; i++) {
-      KafkaConsumer.KafkaMessage message = consumer.pollMessage();
-      // Ignore the duplicate messages
-      if(offsetStats.containsKey(message.kafkaPart) && message.offSet <= offsetStats.get(message.kafkaPart))
-        continue;
-      emitTuple(message.msg);
+      if (pendingMessage != null) {
+        message = pendingMessage;
+        pendingMessage = null;
+      } else {
+        message = consumer.pollMessage();
+      }
+      // If the total size transmitted in the window will be exceeded don't transmit anymore messages in this window
+      // Make an exception for the case when no message has been transmitted in the window and transmit at least one
+      // message even if the condition is violated so that the processing doesn't get stuck
+      if ((emitCount > 0) && ((maxTotalMsgSizePerWindow - emitTotalMsgSize) < message.msg.size())) {
+        pendingMessage = message;
+        break;
+      }
+      emitTuple(message);
+      emitCount++;
+      emitTotalMsgSize += message.msg.size();
       offsetStats.put(message.kafkaPart, message.offSet);
       MutablePair<Long, Integer> offsetAndCount = currentWindowRecoveryState.get(message.kafkaPart);
       if(offsetAndCount == null) {
@@ -374,7 +459,6 @@ public abstract class AbstractKafkaInputOperator<K extends KafkaConsumer> implem
         offsetAndCount.setRight(offsetAndCount.right+1);
       }
     }
-    emitCount += count;
   }
 
   public void setConsumer(K consumer)
@@ -427,11 +511,6 @@ public abstract class AbstractKafkaInputOperator<K extends KafkaConsumer> implem
       isInitialParitition = partitions.iterator().next().getStats() == null;
     }
 
-    // get partition metadata for topics.
-    // Whatever operator is using high-level or simple kafka consumer, the operator always create a temporary simple kafka consumer to get the metadata of the topic
-    // The initial value of brokerList of the KafkaConsumer is used to retrieve the topic metadata
-    Map<String, List<PartitionMetadata>> kafkaPartitions = KafkaMetadataUtil.getPartitionsForTopic(getConsumer().brokers, getConsumer().getTopic());
-
     // Operator partitions
     List<Partitioner.Partition<AbstractKafkaInputOperator<K>>> newPartitions = null;
 
@@ -442,8 +521,9 @@ public abstract class AbstractKafkaInputOperator<K extends KafkaConsumer> implem
       logger.info("Initial offsets: {} ", "{ " + Joiner.on(", ").useForNull("").withKeyValueSeparator(": ").join(initOffset) + " }");
     }
 
-    Collection<IdempotentStorageManager> newManagers = Sets.newHashSet();
-    Set<Integer> deletedOperators =  Sets.newHashSet();
+    Set<Integer> deletedOperators = Sets.newHashSet();
+    Collection<Partition<AbstractKafkaInputOperator<K>>> resultPartitions = partitions;
+    boolean numPartitionsChanged = false;
 
     switch (strategy) {
 
@@ -454,6 +534,10 @@ public abstract class AbstractKafkaInputOperator<K extends KafkaConsumer> implem
       if (isInitialParitition) {
         lastRepartitionTime = System.currentTimeMillis();
         logger.info("[ONE_TO_ONE]: Initializing partition(s)");
+        // get partition metadata for topics.
+        // Whatever operator is using high-level or simple kafka consumer, the operator always create a temporary simple kafka consumer to get the metadata of the topic
+        // The initial value of brokerList of the KafkaConsumer is used to retrieve the topic metadata
+        Map<String, List<PartitionMetadata>> kafkaPartitions = KafkaMetadataUtil.getPartitionsForTopic(getConsumer().brokers, getConsumer().getTopic());
 
         // initialize the number of operator partitions according to number of kafka partitions
 
@@ -462,21 +546,21 @@ public abstract class AbstractKafkaInputOperator<K extends KafkaConsumer> implem
           String clusterId = kp.getKey();
           for (PartitionMetadata pm : kp.getValue()) {
             logger.info("[ONE_TO_ONE]: Create operator partition for cluster {}, topic {}, kafka partition {} ", clusterId, getConsumer().topic, pm.partitionId());
-            newPartitions.add(createPartition(Sets.newHashSet(new KafkaPartition(clusterId, consumer.topic, pm.partitionId())), initOffset, newManagers));
+            newPartitions.add(createPartition(Sets.newHashSet(new KafkaPartition(clusterId, consumer.topic, pm.partitionId())), initOffset));
           }
         }
-
+        resultPartitions = newPartitions;
+        numPartitionsChanged = true;
       }
       else if (newWaitingPartition.size() != 0) {
         // add partition for new kafka partition
         for (KafkaPartition newPartition : newWaitingPartition) {
           logger.info("[ONE_TO_ONE]: Add operator partition for cluster {}, topic {}, partition {}", newPartition.getClusterId(), getConsumer().topic, newPartition.getPartitionId());
-          partitions.add(createPartition(Sets.newHashSet(newPartition), null, newManagers));
+          partitions.add(createPartition(Sets.newHashSet(newPartition), null));
         }
         newWaitingPartition.clear();
-        idempotentStorageManager.partitioned(newManagers, deletedOperators);
-        return partitions;
-
+        resultPartitions = partitions;
+        numPartitionsChanged = true;
       }
       break;
     // For the 1 to N mapping The initial partition number is defined by stream application
@@ -488,9 +572,14 @@ public abstract class AbstractKafkaInputOperator<K extends KafkaConsumer> implem
         throw new UnsupportedOperationException("[ONE_TO_MANY]: The high-level consumer is not supported for ONE_TO_MANY partition strategy.");
       }
 
-      if (isInitialParitition) {
+      if (isInitialParitition || newWaitingPartition.size() != 0) {
         lastRepartitionTime = System.currentTimeMillis();
         logger.info("[ONE_TO_MANY]: Initializing partition(s)");
+        // get partition metadata for topics.
+        // Whatever operator is using high-level or simple kafka consumer, the operator always create a temporary simple kafka consumer to get the metadata of the topic
+        // The initial value of brokerList of the KafkaConsumer is used to retrieve the topic metadata
+        Map<String, List<PartitionMetadata>> kafkaPartitions = KafkaMetadataUtil.getPartitionsForTopic(getConsumer().brokers, getConsumer().getTopic());
+
         int size = initialPartitionCount;
         @SuppressWarnings("unchecked")
         Set<KafkaPartition>[] kps = (Set<KafkaPartition>[]) Array.newInstance((new HashSet<KafkaPartition>()).getClass(), size);
@@ -509,56 +598,17 @@ public abstract class AbstractKafkaInputOperator<K extends KafkaConsumer> implem
         newPartitions = new ArrayList<Partitioner.Partition<AbstractKafkaInputOperator<K>>>(size);
         for (i = 0; i < size; i++) {
           logger.info("[ONE_TO_MANY]: Create operator partition for kafka partition(s): {} ", StringUtils.join(kps[i], ", "));
-          newPartitions.add(createPartition(kps[i], initOffset, newManagers));
+          newPartitions.add(createPartition(kps[i], initOffset));
         }
-
-      }
-      else if (newWaitingPartition.size() != 0) {
-
-        logger.info("[ONE_TO_MANY]: Add operator partition for kafka partition(s): {} ", StringUtils.join(newWaitingPartition, ", "));
-        partitions.add(createPartition(Sets.newHashSet(newWaitingPartition), null, newManagers));
-        idempotentStorageManager.partitioned(newManagers, deletedOperators);
-        return partitions;
-      }
-      else {
-
-        logger.info("[ONE_TO_MANY]: Repartition the operator(s) under " + msgRateUpperBound + " msgs/s and " + byteRateUpperBound + " bytes/s hard limit");
-        // size of the list depends on the load and capacity of each operator
-        newPartitions = new LinkedList<Partitioner.Partition<AbstractKafkaInputOperator<K>>>();
-
-        // Use first-fit decreasing algorithm to minimize the container number and somewhat balance the partition
-        // try to balance the load and minimize the number of containers with each container's load under the threshold
-        // the partition based on the latest 1 minute moving average
-        Map<KafkaPartition, long[]> kPIntakeRate = new HashMap<KafkaPartition, long[]>();
-        // get the offset for all partitions of each consumer
-        Map<KafkaPartition, Long> offsetTrack = new HashMap<KafkaPartition, Long>();
-        for (Partitioner.Partition<AbstractKafkaInputOperator<K>> partition : partitions) {
-          List<Stats.OperatorStats> opss = partition.getStats().getLastWindowedStats();
-          if (opss == null || opss.size() == 0) {
-            continue;
-          }
-          offsetTrack.putAll(partition.getPartitionedInstance().consumer.getCurrentOffsets());
-          // Get the latest stats
-
-          Stats.OperatorStats stat = partition.getStats().getLastWindowedStats().get(partition.getStats().getLastWindowedStats().size() - 1);
-          if (stat.counters instanceof KafkaConsumer.KafkaMeterStats) {
-            KafkaConsumer.KafkaMeterStats kms = (KafkaConsumer.KafkaMeterStats) stat.counters;
-            kPIntakeRate.putAll(get_1minMovingAvgParMap(kms));
-          }
-        }
-
-        List<PartitionInfo> partitionInfos = firstFitDecreasingAlgo(kPIntakeRate);
-
         // Add the existing partition Ids to the deleted operators
-        for(Partitioner.Partition<AbstractKafkaInputOperator<K>> op : partitions)
+        for (Partition<AbstractKafkaInputOperator<K>> op : partitions)
         {
           deletedOperators.add(op.getPartitionedInstance().operatorId);
         }
-        for (PartitionInfo r : partitionInfos) {
-          logger.info("[ONE_TO_MANY]: Create operator partition for kafka partition(s): " + StringUtils.join(r.kpids, ", ") + ", topic: " + this.getConsumer().topic);
-          newPartitions.add(createPartition(r.kpids, offsetTrack, newManagers));
-        }
-        currentPartitionInfo.addAll(partitionInfos);
+
+        newWaitingPartition.clear();
+        resultPartitions = newPartitions;
+        numPartitionsChanged = true;
       }
       break;
 
@@ -568,76 +618,48 @@ public abstract class AbstractKafkaInputOperator<K extends KafkaConsumer> implem
       break;
     }
 
-    idempotentStorageManager.partitioned(newManagers, deletedOperators);
-    return newPartitions;
+    if (numPartitionsChanged) {
+      List<WindowDataManager> managers = windowDataManager.partition(resultPartitions.size(), deletedOperators);
+      int i = 0;
+      for (Partition<AbstractKafkaInputOperator<K>> partition : resultPartitions) {
+        partition.getPartitionedInstance().setWindowDataManager(managers.get(i++));
+      }
+    }
+    return resultPartitions;
+  }
+
+  /**
+   * Create a new partition with the partition Ids and initial offset positions
+   *
+   * @deprecated use {@link #createPartition(Set, Map)}
+   */
+  @Deprecated
+  protected Partitioner.Partition<AbstractKafkaInputOperator<K>> createPartition(Set<KafkaPartition> pIds,
+      Map<KafkaPartition, Long> initOffsets,
+      @SuppressWarnings("UnusedParameters") Collection<WindowDataManager> newManagers)
+  {
+    return createPartition(pIds, initOffsets);
   }
 
   // Create a new partition with the partition Ids and initial offset positions
-  protected Partitioner.Partition<AbstractKafkaInputOperator<K>> createPartition(Set<KafkaPartition> pIds, Map<KafkaPartition, Long> initOffsets, Collection<IdempotentStorageManager> newManagers)
+  protected Partitioner.Partition<AbstractKafkaInputOperator<K>> createPartition(Set<KafkaPartition> pIds,
+      Map<KafkaPartition, Long> initOffsets)
   {
-    Kryo kryo = new Kryo();
-    ByteArrayOutputStream bos = new ByteArrayOutputStream();
-    Output output = new Output(bos);
-    kryo.writeObject(output, this);
-    output.close();
-    Input lInput = new Input(bos.toByteArray());
-    @SuppressWarnings("unchecked")
-    Partitioner.Partition<AbstractKafkaInputOperator<K>> p = new DefaultPartition<AbstractKafkaInputOperator<K>>(kryo.readObject(lInput, this.getClass()));
-    p.getPartitionedInstance().getConsumer().resetPartitionsAndOffset(pIds, initOffsets);
-    newManagers.add(p.getPartitionedInstance().idempotentStorageManager);
+
+    Partitioner.Partition<AbstractKafkaInputOperator<K>> p = new DefaultPartition<>(KryoCloneUtils.cloneObject(this));
+    if (p.getPartitionedInstance().getConsumer() instanceof SimpleKafkaConsumer) {
+      p.getPartitionedInstance().getConsumer().resetPartitionsAndOffset(pIds, initOffsets);
+      if (initOffsets != null) {
+        //Don't send all offsets to all partitions
+        //p.getPartitionedInstance().offsetStats.putAll(initOffsets);
+        p.getPartitionedInstance().offsetStats.putAll(p.getPartitionedInstance().getConsumer().getCurrentOffsets());
+      }
+    }
 
     PartitionInfo pif = new PartitionInfo();
     pif.kpids = pIds;
     currentPartitionInfo.add(pif);
     return p;
-  }
-
-  private List<PartitionInfo> firstFitDecreasingAlgo(final Map<KafkaPartition, long[]> kPIntakeRate)
-  {
-    // (Decreasing) Sort the map by msgs/s and bytes/s in descending order
-    List<Map.Entry<KafkaPartition, long[]>> sortedMapEntry = new LinkedList<Map.Entry<KafkaPartition, long[]>>(kPIntakeRate.entrySet());
-    Collections.sort(sortedMapEntry, new Comparator<Map.Entry<KafkaPartition, long[]>>()
-    {
-      @Override
-      public int compare(Map.Entry<KafkaPartition, long[]> firstEntry, Map.Entry<KafkaPartition, long[]> secondEntry)
-      {
-        long[] firstPair = firstEntry.getValue();
-        long[] secondPair = secondEntry.getValue();
-        if (msgRateUpperBound == Long.MAX_VALUE || firstPair[0] == secondPair[0]) {
-          return (int) (secondPair[1] - firstPair[1]);
-        } else {
-          return (int) (secondPair[0] - firstPair[0]);
-        }
-      }
-    });
-
-    // (First-fit) Look for first fit operator to assign the consumer
-    // Go over all the kafka partitions and look for the right operator to assign to
-    // Each record has a set of kafka partition ids and the resource left for that operator after assigned the consumers for those partitions
-    List<PartitionInfo> pif = new LinkedList<PartitionInfo>();
-    outer:
-    for (Map.Entry<KafkaPartition, long[]> entry : sortedMapEntry) {
-      long[] resourceRequired = entry.getValue();
-      for (PartitionInfo r : pif) {
-        if (r.msgRateLeft > resourceRequired[0] && r.byteRateLeft > resourceRequired[1]) {
-          // found first fit operator partition that has enough resource for this consumer
-          // add consumer to the operator partition
-          r.kpids.add(entry.getKey());
-          // update the resource left in this partition
-          r.msgRateLeft -= r.msgRateLeft == Long.MAX_VALUE ? 0 : resourceRequired[0];
-          r.byteRateLeft -= r.byteRateLeft == Long.MAX_VALUE ? 0 : resourceRequired[1];
-          continue outer;
-        }
-      }
-      // didn't find the existing "operator" to assign this consumer
-      PartitionInfo nr = new PartitionInfo();
-      nr.kpids = Sets.newHashSet(entry.getKey());
-      nr.msgRateLeft = msgRateUpperBound == Long.MAX_VALUE ? msgRateUpperBound : msgRateUpperBound - resourceRequired[0];
-      nr.byteRateLeft = byteRateUpperBound == Long.MAX_VALUE ? byteRateUpperBound : byteRateUpperBound - resourceRequired[1];
-      pif.add(nr);
-    }
-
-    return pif;
   }
 
   @Override
@@ -653,7 +675,11 @@ public abstract class AbstractKafkaInputOperator<K extends KafkaConsumer> implem
   {
     //In every partition check interval, call offsetmanager to update the offsets
     if (offsetManager != null) {
-      offsetManager.updateOffsets(getOffsetsForPartitions(kstats));
+      Map<KafkaPartition, Long> offsetsForPartitions = getOffsetsForPartitions(kstats);
+      if (offsetsForPartitions.size() > 0) {
+        logger.debug("Passing offset updates to offset manager");
+        offsetManager.updateOffsets(offsetsForPartitions);
+      }
     }
   }
 
@@ -681,14 +707,17 @@ public abstract class AbstractKafkaInputOperator<K extends KafkaConsumer> implem
 
     long t = System.currentTimeMillis();
 
+    // If stats are available then update offsets
+    // Do this before re-partition interval check below to not miss offset updates
+    if (kstats.size() > 0) {
+      logger.debug("Checking offset updates for offset manager");
+      updateOffsets(kstats);
+    }
+
     if (t - lastCheckTime < repartitionCheckInterval) {
       // return false if it's within repartitionCheckInterval since last time it check the stats
       return false;
     }
-
-    logger.debug("Use OffsetManager to update offsets");
-    updateOffsets(kstats);
-
 
     if(repartitionInterval < 0){
       // if repartition is disabled
@@ -741,95 +770,11 @@ public abstract class AbstractKafkaInputOperator<K extends KafkaConsumer> implem
         }
       }
 
-      if (strategy == PartitionStrategy.ONE_TO_ONE) {
-        return false;
-      }
-
-      // This is expensive part and only every repartitionCheckInterval it will check existing the overall partitions
-      // and see if there is more optimal solution
-      // The decision is made by 2 constraint
-      // Hard constraint which is upper bound overall msgs/s or bytes/s
-      // Soft constraint which is more optimal solution
-
-      boolean b = breakHardConstraint(kstats) || breakSoftConstraint();
-      if (b) {
-        currentPartitionInfo.clear();
-        kafkaStatsHolder.clear();
-      }
-      return b;
+      return false;
     } finally {
       // update last  check time
       lastCheckTime = System.currentTimeMillis();
     }
-  }
-
-  /**
-   * Check to see if there is other more optimal(less partition) partition assignment based on current statistics
-   *
-   * @return True if all windowed stats indicate different partition size we need to adjust the partition.
-   */
-  private boolean breakSoftConstraint()
-  {
-    if (kafkaStatsHolder.size() != currentPartitionInfo.size()) {
-      return false;
-    }
-    int length = kafkaStatsHolder.get(kafkaStatsHolder.keySet().iterator().next()).size();
-    for (int j = 0; j < length; j++) {
-      Map<KafkaPartition, long[]> kPIntakeRate = new HashMap<KafkaPartition, long[]>();
-      for (Integer pid : kafkaStatsHolder.keySet()) {
-        if(kafkaStatsHolder.get(pid).size() <= j)
-          continue;
-        kPIntakeRate.putAll(get_1minMovingAvgParMap(kafkaStatsHolder.get(pid).get(j)));
-      }
-      if (kPIntakeRate.size() == 0) {
-        return false;
-      }
-      List<PartitionInfo> partitionInfo = firstFitDecreasingAlgo(kPIntakeRate);
-      if (partitionInfo.size() == 0 || partitionInfo.size() == currentPartitionInfo.size()) {
-        return false;
-      }
-    }
-    // if all windowed stats indicate different partition size we need to adjust the partition
-    return true;
-  }
-
-  /**
-   * Check if all the statistics within the windows break the upper bound hard limit in msgs/s or bytes/s
-   *
-   * @return True if all the statistics within the windows break the upper bound hard limit in msgs/s or bytes/s.
-   */
-  private boolean breakHardConstraint(List<KafkaConsumer.KafkaMeterStats> kmss)
-  {
-    // Only care about the KafkaMeterStats
-
-    // if there is no kafka meter stats at all, don't repartition
-    if (kmss == null || kmss.size() == 0) {
-      return false;
-    }
-    // if all the stats within the window have msgs/s above the upper bound threshold (hard limit)
-    boolean needRP = Iterators.all(kmss.iterator(), new Predicate<KafkaConsumer.KafkaMeterStats>()
-    {
-      @Override
-      public boolean apply(KafkaConsumer.KafkaMeterStats kms)
-      {
-        // If there are more than 1 kafka partition and the total msg/s reach the limit
-        return kms.partitionStats.size() > 1 && kms.totalMsgPerSec > msgRateUpperBound;
-      }
-    });
-
-    // or all the stats within the window have bytes/s above the upper bound threshold (hard limit)
-    needRP = needRP || Iterators.all(kmss.iterator(), new Predicate<KafkaConsumer.KafkaMeterStats>()
-    {
-      @Override
-      public boolean apply(KafkaConsumer.KafkaMeterStats kms)
-      {
-        //If there are more than 1 kafka partition and the total bytes/s reach the limit
-        return kms.partitionStats.size() > 1 && kms.totalBytesPerSec > byteRateUpperBound;
-      }
-    });
-
-    return needRP;
-
   }
 
   public static enum PartitionStrategy
@@ -858,14 +803,14 @@ public abstract class AbstractKafkaInputOperator<K extends KafkaConsumer> implem
     long byteRateLeft;
   }
 
-  public IdempotentStorageManager getIdempotentStorageManager()
+  public WindowDataManager getWindowDataManager()
   {
-    return idempotentStorageManager;
+    return windowDataManager;
   }
 
-  public void setIdempotentStorageManager(IdempotentStorageManager idempotentStorageManager)
+  public void setWindowDataManager(WindowDataManager windowDataManager)
   {
-    this.idempotentStorageManager = idempotentStorageManager;
+    this.windowDataManager = windowDataManager;
   }
 
   public void setInitialPartitionCount(int partitionCount)
@@ -906,6 +851,11 @@ public abstract class AbstractKafkaInputOperator<K extends KafkaConsumer> implem
   public void setOffsetManager(OffsetManager offsetManager)
   {
     this.offsetManager = offsetManager;
+  }
+
+  public OffsetManager getOffsetManager()
+  {
+    return offsetManager;
   }
 
   public void setRepartitionCheckInterval(long repartitionCheckInterval)

@@ -1,21 +1,24 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.demos.yahoofinance;
 
-
+import org.apache.hadoop.conf.Configuration;
 import com.datatorrent.api.Context.OperatorContext;
 import com.datatorrent.api.Context.PortContext;
 import com.datatorrent.api.DAG;
@@ -29,7 +32,6 @@ import com.datatorrent.lib.multiwindow.SimpleMovingAverage;
 import com.datatorrent.lib.stream.ConsolidatorKeyVal;
 import com.datatorrent.lib.util.BaseKeyValueOperator.DefaultPartitionCodec;
 import com.datatorrent.lib.util.HighLow;
-import org.apache.hadoop.conf.Configuration;
 
 /**
  * Yahoo! Finance Application Demo :<br>
@@ -188,7 +190,7 @@ import org.apache.hadoop.conf.Configuration;
  *
  * @since 0.3.2
  */
-@ApplicationAnnotation(name="YahooFinanceDemo")
+@ApplicationAnnotation(name = "YahooFinanceDemo")
 public class YahooFinanceApplication implements StreamingApplication
 {
   protected int streamingWindowSizeMilliSeconds = 1000; // 1 second
@@ -326,8 +328,8 @@ public class YahooFinanceApplication implements StreamingApplication
   /**
    * Populate Yahoo Finance Demo Application DAG.
    */
-	@SuppressWarnings("unchecked")
-	@Override
+  @SuppressWarnings("unchecked")
+  @Override
   public void populateDAG(DAG dag, Configuration conf)
   {
 

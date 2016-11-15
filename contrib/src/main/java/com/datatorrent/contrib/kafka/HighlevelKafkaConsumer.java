@@ -1,17 +1,20 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.contrib.kafka;
 
@@ -119,12 +122,12 @@ public class HighlevelKafkaConsumer extends KafkaConsumer
       // create high level consumer for every cluster
       Properties config = new Properties();
       config.putAll(consumerConfig);
-      config.setProperty("zookeeper.connect", Joiner.on(',').join(zookeeperMap.get(cluster)));
-      // create consumer connector will start a daemon thread to monitor the metadata change 
-      // we want to start this thread until the operator is activated 
+      config.setProperty("zookeeper.connect", zookeeperMap.get(cluster).iterator().next());
+      // create consumer connector will start a daemon thread to monitor the metadata change
+      // we want to start this thread until the operator is activated
       standardConsumer.put(cluster, kafka.consumer.Consumer.createJavaConsumerConnector(new ConsumerConfig(config)));
     }
-    
+
     Map<String, Integer> topicCountMap = new HashMap<String, Integer>();
 
     if (numStream == null || numStream.size() == 0) {
@@ -229,5 +232,5 @@ public class HighlevelKafkaConsumer extends KafkaConsumer
     // offset is not useful for high-level kafka consumer
     throw new UnsupportedOperationException("Offset request is currently not supported for high-level consumer");
   }
-  
+
 }

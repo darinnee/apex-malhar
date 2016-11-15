@@ -1,17 +1,20 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.io;
 
@@ -25,11 +28,12 @@ import javax.validation.constraints.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.datatorrent.api.DefaultOutputPort;
-import com.datatorrent.api.Context.OperatorContext;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientResponse;
 import com.sun.jersey.api.client.WebResource;
+
+import com.datatorrent.api.Context.OperatorContext;
+import com.datatorrent.api.DefaultOutputPort;
 
 /**
  * This is a base implementation for an HTTP input operator that reads from a given url using the HTTP GET command like an input stream.&nbsp;
@@ -41,6 +45,7 @@ import com.sun.jersey.api.client.WebResource;
  *
  * @since 0.3.2
  */
+@org.apache.hadoop.classification.InterfaceStability.Evolving
 public abstract class AbstractHttpInputOperator<T> extends SimpleSinglePortInputOperator<T> implements Runnable
 {
   /**
@@ -118,15 +123,13 @@ public abstract class AbstractHttpInputOperator<T> extends SimpleSinglePortInput
 
         ClientResponse response = builder.get(ClientResponse.class);
         processResponse(response);
-      }
-      catch (Exception e) {
+      } catch (Exception e) {
         LOG.error("Error reading from " + resource.getURI(), e);
       }
 
       try {
         Thread.sleep(500);
-      }
-      catch (InterruptedException e) {
+      } catch (InterruptedException e) {
         LOG.info("Exiting IO loop {}.", e.toString());
         break;
       }

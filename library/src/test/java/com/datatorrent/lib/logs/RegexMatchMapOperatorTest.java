@@ -1,17 +1,20 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.logs;
 
@@ -36,7 +39,7 @@ public class RegexMatchMapOperatorTest
   /**
    * Since the regex does not have a default value, ensure the operator raises a RuntimeException if it is not set.
    */
-  @Test(expected=RuntimeException.class)
+  @Test(expected = RuntimeException.class)
   public void testRaisesIfNoRegex()
   {
     String string = "foobar";
@@ -90,24 +93,31 @@ public class RegexMatchMapOperatorTest
   @Test
   public void testMatching()
   {
-    ArrayList<HashMap<String,String>> test_cases = new ArrayList<HashMap<String,String>>();
+    ArrayList<HashMap<String, String>> test_cases = new ArrayList<HashMap<String, String>>();
 
     // class comment example case
-    HashMap<String,String> test_case = new HashMap<String,String>();
+    HashMap<String, String> test_case = new HashMap<String, String>();
     test_case.put("string", "12345 \"foo bar\" baz;goober");
     test_case.put("regex", "^(?<id>\\d+) \"(?<username>[^\"]+)\" (?<action>[^;]+);(?<cookie>.+)");
     test_case.put("fields", "id,username,action,cookie");
     test_cases.add(test_case);
 
     // apache log case
-    test_case = new HashMap<String,String>();
-    test_case.put("string", "127.0.0.1 - - [04/Apr/2013:17:17:21 -0700] \"GET /favicon.ico HTTP/1.1\" 404 498 \"http://www.google.com/\" \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.31 (KHTML, like Gecko) Chrome/26.0.1410.43 Safari/537.31\"");
-    test_case.put("regex", "^(?<ip>[\\d\\.]+) (\\S+) (\\S+) \\[(?<date>[\\w:/]+\\s[+\\-]\\d{4})\\] \"[A-Z]+ (?<url>.+?) HTTP/\\S+\" (?<status>\\d{3}) (?<bytes>\\d+) \"(?<referer>[^\"]+)\" \"(?<agent>[^\"]+)\"");
+    test_case = new HashMap<String, String>();
+    test_case.put("string",
+        "127.0.0.1 - - [04/Apr/2013:17:17:21 -0700] \"GET /favicon.ico HTTP/1.1\" 404 498 \"http://www.google.com/\" " +
+        "\"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.31 (KHTML, like Gecko) Chrome/26.0.1410.43 Safari/537" +
+        ".31\"");
+
+    test_case.put("regex",
+        "^(?<ip>[\\d\\.]+) (\\S+) (\\S+) \\[(?<date>[\\w:/]+\\s[+\\-]\\d{4})\\] \"[A-Z]+ (?<url>.+?) HTTP/\\S+\" " +
+        "(?<status>\\d{3}) (?<bytes>\\d+) \"(?<referer>[^\"]+)\" \"(?<agent>[^\"]+)\"");
+
     test_case.put("fields", "ip,date,url,status,bytes,referer,agent");
     test_cases.add(test_case);
 
     // iterate through test cases
-    for (HashMap<String,String> curr_case : test_cases) {
+    for (HashMap<String, String> curr_case : test_cases) {
       String string = curr_case.get("string");
       String regex = curr_case.get("regex");
       String[] fields = curr_case.get("fields").split(",");
@@ -130,7 +140,7 @@ public class RegexMatchMapOperatorTest
 
       // fetch the Map that was output
       @SuppressWarnings("unchecked")
-      Map<String,Object> output = (Map<String,Object>)sink.collectedTuples.get(0);
+      Map<String, Object> output = (Map<String, Object>)sink.collectedTuples.get(0);
 
       // debugging output
       log.debug(String.format("Line is  : %s", string));

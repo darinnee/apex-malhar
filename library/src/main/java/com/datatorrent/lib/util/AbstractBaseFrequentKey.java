@@ -1,17 +1,20 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.util;
 
@@ -50,25 +53,28 @@ public abstract class AbstractBaseFrequentKey<K> extends BaseKeyOperator<K>
     }
     count.increment();
   }
+
   protected HashMap<K, MutableInt> keycount = new HashMap<K, MutableInt>();
 
   /**
    * override emitTuple to decide the port to emit to
    * @param tuple
    */
-  abstract public void emitTuple(HashMap<K,Integer> tuple);
+  public abstract void emitTuple(HashMap<K,Integer> tuple);
+
   /**
    * Overide emitList to specify the emit schema
    * @param tlist
    */
-  abstract public void emitList(ArrayList<HashMap<K, Integer>> tlist);
+  public abstract void emitList(ArrayList<HashMap<K, Integer>> tlist);
+
   /**
    * Override compareCount to decide most vs least
    * @param val1
    * @param val2
    * @return result of compareCount to be done by subclass
    */
-  abstract public boolean compareCount(int val1, int val2);
+  public abstract boolean compareCount(int val1, int val2);
 
   /**
    * Emits the result.
@@ -85,14 +91,12 @@ public abstract class AbstractBaseFrequentKey<K> extends BaseKeyOperator<K>
         key = e.getKey();
         kval = e.getValue().intValue();
         map.put(key, null);
-      }
-      else if (compareCount(e.getValue().intValue(), kval)) {
+      } else if (compareCount(e.getValue().intValue(), kval)) {
         key = e.getKey();
         kval = e.getValue().intValue();
         map.clear();
         map.put(key, null);
-      }
-      else if (e.getValue().intValue() == kval) {
+      } else if (e.getValue().intValue() == kval) {
         map.put(e.getKey(), null);
       }
     }

@@ -1,35 +1,66 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.util;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
+import java.io.File;
 import java.util.List;
 
 import org.junit.rules.TestWatcher;
+import org.junit.runner.Description;
 
-import com.esotericsoftware.kryo.Kryo;
-import com.esotericsoftware.kryo.io.Input;
-import com.esotericsoftware.kryo.io.Output;
+import org.apache.apex.malhar.lib.utils.serde.BufferSlice;
+import org.apache.commons.io.FileUtils;
 
-import com.datatorrent.api.*;
+import com.google.common.base.Preconditions;
+
+import com.datatorrent.api.DefaultPartition;
+import com.datatorrent.api.Operator;
 import com.datatorrent.api.Operator.OutputPort;
+import com.datatorrent.api.Sink;
+import com.datatorrent.api.Stats;
+import com.datatorrent.api.StatsListener;
+import com.datatorrent.netlet.util.Slice;
 
 public class TestUtils
 {
+  public static byte[] getByte(int val)
+  {
+    Preconditions.checkArgument(val <= Byte.MAX_VALUE);
+    return new byte[]{(byte)val};
+  }
+
+  public static byte[] getBytes(int val)
+  {
+    byte[] bytes = new byte[4];
+    bytes[0] = (byte)(val & 0xFF);
+    bytes[1] = (byte)((val >> 8) & 0xFF);
+    bytes[2] = (byte)((val >> 16) & 0xFF);
+    bytes[3] = (byte)((val >> 24) & 0xFF);
+
+    return bytes;
+  }
+
+  public static Slice getSlice(int val)
+  {
+    return new BufferSlice(getBytes(val));
+  }
+
   public static class TestInfo extends TestWatcher
   {
     public org.junit.runner.Description desc;
@@ -48,31 +79,16 @@ public class TestUtils
     }
   }
 
-  /**
-   * Clone object by serializing and deserializing using Kryo.
-   * Note this is different from using {@link Kryo#copy(Object)}, which will attempt to also clone transient fields.
-   * @param kryo
-   * @param src
-   * @return
-   * @throws IOException
-   */
-  public static <T> T clone(Kryo kryo, T src) throws IOException
+  public static void deleteTargetTestClassFolder(Description description)
   {
-    ByteArrayOutputStream bos = new ByteArrayOutputStream();
-    Output output = new Output(bos);
-    kryo.writeObject(output, src);
-    output.close();
-    Input input = new Input(bos.toByteArray());
-    @SuppressWarnings("unchecked")
-    Class<T> clazz = (Class<T>)src.getClass();
-    return kryo.readObject(input, clazz);
+    FileUtils.deleteQuietly(new File("target/" + description.getClassName()));
   }
 
-  @SuppressWarnings({ "unchecked", "rawtypes" })
+  @SuppressWarnings({"unchecked", "rawtypes"})
   public static <S extends Sink, T> S setSink(OutputPort<T> port, S sink)
   {
-     port.setSink(sink);
-     return sink;
+    port.setSink(sink);
+    return sink;
   }
 
   /**

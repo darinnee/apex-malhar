@@ -1,3 +1,21 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 package com.datatorrent.contrib.hbase;
 
 import static com.datatorrent.lib.db.jdbc.JdbcNonTransactionalOutputOperatorTest.OPERATOR_ID;
@@ -10,10 +28,13 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.internal.runners.statements.Fail;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.datatorrent.api.Attribute.AttributeMap;
+import com.datatorrent.api.Context;
+import com.datatorrent.api.Context.OperatorContext;
 import com.datatorrent.api.DAG;
 import com.datatorrent.api.LocalMode;
 import com.datatorrent.api.StreamingApplication;
@@ -33,7 +54,7 @@ public class HBasePOJOInputOperatorTest
     HBASEINPUT,
     OUTPUT
   };
-  
+
   public static class MyGenerator extends TupleGenerateCacheOperator<TestPOJO>
   {
     public MyGenerator()
@@ -41,28 +62,44 @@ public class HBasePOJOInputOperatorTest
       this.setTupleType( TestPOJO.class );
     }
   }
-  
+
+  public static class TestHBasePOJOInputOperator extends HBasePOJOInputOperator
+  {
+    @Override
+    public void setup(OperatorContext context)
+    {
+      try {
+        // Added to let the output operator insert data into hbase table before input operator can read it
+        Thread.sleep(1000);
+      } catch(InterruptedException e) {
+        throw new RuntimeException(e);
+      }
+      super.setup(context);
+    }
+  }
+
   private static final Logger logger = LoggerFactory.getLogger( HBasePOJOInputOperatorTest.class );
   private final int TUPLE_NUM = 1000;
+  private final long RUN_DURATION = 30000; // time in ms
   private HBaseStore store;
   private HBasePOJOPutOperator hbaseOutputOperator;
-  private HBasePOJOInputOperator hbaseInputOperator;
-  
+  private TestHBasePOJOInputOperator hbaseInputOperator;
+
   @Before
   public void prepare() throws Exception
   {
-    hbaseInputOperator = new HBasePOJOInputOperator();
+    hbaseInputOperator = new TestHBasePOJOInputOperator();
     hbaseOutputOperator = new HBasePOJOPutOperator();
     setupOperators();
     HBaseUtil.createTable( store.getConfiguration(), store.getTableName());
   }
-  
+
   @After
   public void cleanup() throws Exception
   {
     HBaseUtil.deleteTable( store.getConfiguration(), store.getTableName());
   }
-  
+
 
   @Test
   public void test() throws Exception
@@ -82,19 +119,20 @@ public class HBasePOJOInputOperatorTest
     // Create ActiveMQStringSinglePortOutputOperator
     MyGenerator generator = dag.addOperator( OPERATOR.GENERATOR.name(), MyGenerator.class);
     generator.setTupleNum( TUPLE_NUM );
-    
+
     hbaseOutputOperator = dag.addOperator( OPERATOR.HBASEOUTPUT.name(), hbaseOutputOperator );
 
     hbaseInputOperator = dag.addOperator(OPERATOR.HBASEINPUT.name(), hbaseInputOperator);
-    
-    
+    dag.setOutputPortAttribute(hbaseInputOperator.outputPort, Context.PortContext.TUPLE_CLASS, TestPOJO.class);
+
+
     TupleCacheOutputOperator output = dag.addOperator(OPERATOR.OUTPUT.name(), TupleCacheOutputOperator.class);
-    
+
     // Connect ports
     dag.addStream("queue1", generator.outputPort, hbaseOutputOperator.input ).setLocality(DAG.Locality.NODE_LOCAL);
     dag.addStream("queue2", hbaseInputOperator.outputPort, output.inputPort ).setLocality(DAG.Locality.NODE_LOCAL);
-    
-    
+
+
     Configuration conf = new Configuration(false);
     lma.prepareDAG(app, conf);
 
@@ -102,6 +140,7 @@ public class HBasePOJOInputOperatorTest
     final LocalMode.Controller lc = lma.getController();
     lc.runAsync();
 
+    long start = System.currentTimeMillis();
     //generator.doneLatch.await();
     while(true)
     {
@@ -110,15 +149,19 @@ public class HBasePOJOInputOperatorTest
         Thread.sleep(1000);
       }
       catch( Exception e ){}
-      
+      logger.info("Tuple row key: ", output.getReceivedTuples());
       logger.info( "Received tuple number {}, instance is {}.", output.getReceivedTuples() == null ? 0 : output.getReceivedTuples().size(), System.identityHashCode( output ) );
-      if( output.getReceivedTuples() != null && output.getReceivedTuples().size() == TUPLE_NUM )
+      if( output.getReceivedTuples() != null && output.getReceivedTuples().size() == TUPLE_NUM ) {
         break;
+      }
+      if(System.currentTimeMillis() - start > RUN_DURATION) {
+        throw new RuntimeException("Testcase taking too long");
+      }
     }
-    
+
     lc.shutdown();
 
-    
+
     validate( generator.getTuples(), output.getReceivedTuples() );
   }
 
@@ -130,11 +173,11 @@ public class HBasePOJOInputOperatorTest
     actual.removeAll(expected);
     Assert.assertTrue( "content not same.", actual.isEmpty() );
   }
-  
+
   protected void setupOperators()
   {
     TableInfo<HBaseFieldInfo> tableInfo = new TableInfo<HBaseFieldInfo>();
-    
+
     tableInfo.setRowOrIdExpression("row");
 
     List<HBaseFieldInfo> fieldsInfo = new ArrayList<HBaseFieldInfo>();
@@ -143,10 +186,10 @@ public class HBasePOJOInputOperatorTest
     fieldsInfo.add( new HBaseFieldInfo( "address", "address", SupportType.STRING, "f1") );
 
     tableInfo.setFieldsInfo(fieldsInfo);
-    
+
     hbaseInputOperator.setTableInfo(tableInfo);
     hbaseOutputOperator.setTableInfo(tableInfo);
-    
+
     store = new HBaseStore();
     store.setTableName("test");
     store.setZookeeperQuorum("localhost");
@@ -154,9 +197,7 @@ public class HBasePOJOInputOperatorTest
 
     hbaseInputOperator.setStore(store);
     hbaseOutputOperator.setStore(store);
-    
-    hbaseInputOperator.setPojoTypeName( TestPOJO.class.getName() );
-    
+
     OperatorContextTestHelper.TestIdOperatorContext context = new OperatorContextTestHelper.TestIdOperatorContext(
         OPERATOR_ID, new AttributeMap.DefaultAttributeMap());
     hbaseInputOperator.setup(context);

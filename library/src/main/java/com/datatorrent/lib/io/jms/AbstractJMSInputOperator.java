@@ -1,35 +1,48 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.io.jms;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.atomic.AtomicReference;
 
-import javax.jms.*;
+import javax.jms.ExceptionListener;
+import javax.jms.JMSException;
+import javax.jms.Message;
+import javax.jms.MessageConsumer;
+import javax.jms.MessageListener;
+import javax.jms.MessageProducer;
+import javax.jms.Session;
+import javax.jms.Topic;
 import javax.validation.constraints.Min;
 import javax.validation.constraints.NotNull;
 
-import org.apache.commons.lang.mutable.MutableLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.apex.malhar.lib.wal.FSWindowDataManager;
+import org.apache.apex.malhar.lib.wal.WindowDataManager;
+import org.apache.commons.lang.mutable.MutableLong;
+
+import com.google.common.base.Throwables;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
@@ -40,10 +53,7 @@ import com.datatorrent.api.InputOperator;
 import com.datatorrent.api.Operator;
 import com.datatorrent.api.Operator.ActivationListener;
 import com.datatorrent.api.annotation.OperatorAnnotation;
-
-import com.datatorrent.netlet.util.DTThrowable;
 import com.datatorrent.lib.counters.BasicCounters;
-import com.datatorrent.lib.io.IdempotentStorageManager;
 
 /**
  * This is the base implementation of a JMS input operator.<br/>
@@ -53,8 +63,8 @@ import com.datatorrent.lib.io.IdempotentStorageManager;
  * {@link #onMessage(Message)} is called which buffers the message into a holding buffer. This is asynchronous.<br/>
  * {@link #emitTuples()} retrieves messages from holding buffer and processes them.
  * <p/>
- * Important: The {@link IdempotentStorageManager.FSIdempotentStorageManager} makes the operator fault tolerant as
- * well as idempotent. If {@link IdempotentStorageManager.NoopIdempotentStorageManager} is set on the operator then
+ * Important: The {@link FSWindowDataManager} makes the operator fault tolerant as
+ * well as idempotent. If {@link WindowDataManager.NoopWindowDataManager} is set on the operator then
  * it will not be fault-tolerant as well.
  * <p/>
  * Configurations:<br/>
@@ -68,8 +78,9 @@ import com.datatorrent.lib.io.IdempotentStorageManager;
  * @since 0.3.2
  */
 @OperatorAnnotation(checkpointableWithinAppWindow = false)
-public abstract class AbstractJMSInputOperator<T> extends JMSBase implements InputOperator, ActivationListener<OperatorContext>,
-  MessageListener, ExceptionListener, Operator.IdleTimeHandler, Operator.CheckpointListener
+public abstract class AbstractJMSInputOperator<T> extends JMSBase
+    implements InputOperator, ActivationListener<OperatorContext>, MessageListener, ExceptionListener,
+    Operator.IdleTimeHandler, Operator.CheckpointListener, Operator.CheckpointNotificationListener
 {
   protected static final int DEFAULT_BUFFER_SIZE = 10 * 1024; // 10k
 
@@ -94,13 +105,12 @@ public abstract class AbstractJMSInputOperator<T> extends JMSBase implements Inp
   private final transient AtomicReference<Throwable> throwable;
 
   @NotNull
-  protected IdempotentStorageManager idempotentStorageManager;
-  private transient long[] operatorRecoveredWindows;
+  protected WindowDataManager windowDataManager;
   protected transient long currentWindowId;
   protected transient int emitCount;
 
-  private transient final Set<String> pendingAck;
-  private transient final Lock lock;
+  private final transient Set<String> pendingAck;
+  private final transient Lock lock;
 
   public final transient DefaultOutputPort<T> output = new DefaultOutputPort<T>();
 
@@ -109,7 +119,7 @@ public abstract class AbstractJMSInputOperator<T> extends JMSBase implements Inp
     counters = new BasicCounters<MutableLong>(MutableLong.class);
     throwable = new AtomicReference<Throwable>();
     pendingAck = Sets.newHashSet();
-    idempotentStorageManager = new IdempotentStorageManager.FSIdempotentStorageManager();
+    windowDataManager = new FSWindowDataManager();
 
     lock = new Lock();
 
@@ -126,8 +136,7 @@ public abstract class AbstractJMSInputOperator<T> extends JMSBase implements Inp
         synchronized (lock) {
           try {
             return messageConsumed(message) && super.add(message);
-          }
-          catch (JMSException e) {
+          } catch (JMSException e) {
             LOG.error("message consumption", e);
             throwable.set(e);
             throw new RuntimeException(e);
@@ -159,10 +168,10 @@ public abstract class AbstractJMSInputOperator<T> extends JMSBase implements Inp
   {
     try {
       if (message.getJMSReplyTo() != null) { // Send reply only if the replyTo destination is set
-        replyProducer.send(message.getJMSReplyTo(), getSession().createTextMessage("Reply: " + message.getJMSMessageID()));
+        replyProducer.send(message.getJMSReplyTo(),
+            getSession().createTextMessage("Reply: " + message.getJMSMessageID()));
       }
-    }
-    catch (JMSException ex) {
+    } catch (JMSException ex) {
       LOG.error(ex.getLocalizedMessage());
       throwable.set(ex);
       throw new RuntimeException(ex);
@@ -190,16 +199,7 @@ public abstract class AbstractJMSInputOperator<T> extends JMSBase implements Inp
     spinMillis = context.getValue(OperatorContext.SPIN_MILLIS);
     counters.setCounter(CounterKeys.RECEIVED, new MutableLong());
     counters.setCounter(CounterKeys.REDELIVERED, new MutableLong());
-    idempotentStorageManager.setup(context);
-    try {
-      operatorRecoveredWindows = idempotentStorageManager.getWindowIds(context.getId());
-      if (operatorRecoveredWindows != null) {
-        Arrays.sort(operatorRecoveredWindows);
-      }
-    }
-    catch (IOException e) {
-      throw new RuntimeException("fetching windows", e);
-    }
+    windowDataManager.setup(context);
   }
 
   /**
@@ -220,7 +220,8 @@ public abstract class AbstractJMSInputOperator<T> extends JMSBase implements Inp
     pendingAck.add(message.getJMSMessageID());
     MutableLong receivedCt = counters.getCounter(CounterKeys.RECEIVED);
     receivedCt.increment();
-    LOG.debug("message id: {} buffer size: {} received: {}", message.getJMSMessageID(), holdingBuffer.size(), receivedCt.longValue());
+    LOG.debug("message id: {} buffer size: {} received: {}", message.getJMSMessageID(), holdingBuffer.size(),
+        receivedCt.longValue());
     return true;
   }
 
@@ -236,11 +237,10 @@ public abstract class AbstractJMSInputOperator<T> extends JMSBase implements Inp
       replyProducer = getSession().createProducer(null);
 
       consumer = (isDurable() && isTopic()) ?
-        getSession().createDurableSubscriber((Topic) getDestination(), consumerName) :
-        getSession().createConsumer(getDestination());
+          getSession().createDurableSubscriber((Topic)getDestination(), consumerName) :
+          getSession().createConsumer(getDestination());
       consumer.setMessageListener(this);
-    }
-    catch (JMSException ex) {
+    } catch (JMSException ex) {
       throw new RuntimeException(ex);
     }
   }
@@ -252,7 +252,7 @@ public abstract class AbstractJMSInputOperator<T> extends JMSBase implements Inp
   public void beginWindow(long windowId)
   {
     currentWindowId = windowId;
-    if (windowId <= idempotentStorageManager.getLargestRecoveryWindow()) {
+    if (windowId <= windowDataManager.getLargestCompletedWindow()) {
       replay(windowId);
     }
   }
@@ -261,16 +261,21 @@ public abstract class AbstractJMSInputOperator<T> extends JMSBase implements Inp
   {
     try {
       @SuppressWarnings("unchecked")
-      Map<String, T> recoveredData = (Map<String, T>) idempotentStorageManager.load(context.getId(), windowId);
+      Map<String, T> recoveredData = (Map<String, T>)windowDataManager.retrieve(windowId);
       if (recoveredData == null) {
         return;
       }
       for (Map.Entry<String, T> recoveredEntry : recoveredData.entrySet()) {
+        /*
+          It is important to add the recovered message ids to the pendingAck set because there is no guarantee
+          that acknowledgement completed after state was persisted by windowDataManager. In that case, the messages are
+          re-delivered by the message bus. Therefore, we compare each message against this set and ignore re-delivered
+          messages.
+         */
         pendingAck.add(recoveredEntry.getKey());
         emit(recoveredEntry.getValue());
       }
-    }
-    catch (IOException e) {
+    } catch (IOException e) {
       throw new RuntimeException("replay", e);
     }
   }
@@ -278,7 +283,7 @@ public abstract class AbstractJMSInputOperator<T> extends JMSBase implements Inp
   @Override
   public void emitTuples()
   {
-    if (currentWindowId <= idempotentStorageManager.getLargestRecoveryWindow()) {
+    if (currentWindowId <= windowDataManager.getLargestCompletedWindow()) {
       return;
     }
 
@@ -303,8 +308,7 @@ public abstract class AbstractJMSInputOperator<T> extends JMSBase implements Inp
         currentWindowRecoveryState.put(message.getJMSMessageID(), payload);
         emit(payload);
       }
-    }
-    catch (JMSException e) {
+    } catch (JMSException e) {
       throw new RuntimeException("processing msg", e);
     }
   }
@@ -317,13 +321,11 @@ public abstract class AbstractJMSInputOperator<T> extends JMSBase implements Inp
       /* nothing to do here, so sleep for a while to avoid busy loop */
       try {
         Thread.sleep(spinMillis);
-      }
-      catch (InterruptedException ie) {
+      } catch (InterruptedException ie) {
         throw new RuntimeException(ie);
       }
-    }
-    else {
-      DTThrowable.rethrow(lthrowable);
+    } else {
+      Throwables.propagate(lthrowable);
     }
   }
 
@@ -335,15 +337,14 @@ public abstract class AbstractJMSInputOperator<T> extends JMSBase implements Inp
    * acknowledged have been persisted because they wouldn't be redelivered. Also if they are persisted then
    * they shouldn't be re-delivered because that would cause duplicates.<br/>
    *
-   * This is why when recovery data is persisted and messages are acknowledged, the thread that consumes message is blocked.<br/>
+   * This is why when recovery data is persisted and messages are acknowledged, the thread that consumes message is
+   * blocked.<br/>
    */
   @Override
   public void endWindow()
   {
-    if (currentWindowId > idempotentStorageManager.getLargestRecoveryWindow()) {
+    if (currentWindowId > windowDataManager.getLargestCompletedWindow()) {
       synchronized (lock) {
-        boolean stateSaved = false;
-        boolean ackCompleted = false;
         try {
           //No more messages can be consumed now. so we will call emit tuples once more
           //so that any pending messages can be emitted.
@@ -353,36 +354,25 @@ public abstract class AbstractJMSInputOperator<T> extends JMSBase implements Inp
             emitCount++;
             lastMsg = msg;
           }
-          idempotentStorageManager.save(currentWindowRecoveryState, context.getId(), currentWindowId);
-          stateSaved = true;
-
+          windowDataManager.save(currentWindowRecoveryState, currentWindowId);
           currentWindowRecoveryState.clear();
           if (lastMsg != null) {
             acknowledge();
           }
-          ackCompleted = true;
           pendingAck.clear();
-        }
-        catch (Throwable t) {
-          if (!ackCompleted) {
-            LOG.info("confirm recovery of {} for {} does not exist", context.getId(), currentWindowId, t);
-          }
-          DTThrowable.rethrow(t);
-        }
-        finally {
-          if (stateSaved && !ackCompleted) {
-            try {
-              idempotentStorageManager.delete(context.getId(), currentWindowId);
-            }
-            catch (IOException e) {
-              LOG.error("unable to delete corrupted state", e);
-            }
-          }
+        } catch (Throwable t) {
+          /*
+            When acknowledgement fails after state is persisted by windowDataManager, then this window is considered
+            as completed by the operator instance after recovery. However, since the acknowledgement failed, the
+            messages will be re-sent by the message bus. In order to address that, while re-playing, we add the messages
+            to the pendingAck set. When these messages are re-delivered, we compare it against this set and ignore them
+            if there id is already in the set.
+          */
+          Throwables.propagate(t);
         }
       }
       emitCount = 0; //reset emit count
-    }
-    else if (operatorRecoveredWindows != null && currentWindowId < operatorRecoveredWindows[operatorRecoveredWindows.length - 1]) {
+    } else if (currentWindowId < windowDataManager.getLargestCompletedWindow()) {
       //pendingAck is not cleared for the last replayed window of this operator. This is because there is
       //still a chance that in the previous run the operator crashed after saving the state but before acknowledgement.
       pendingAck.clear();
@@ -399,10 +389,14 @@ public abstract class AbstractJMSInputOperator<T> extends JMSBase implements Inp
   {
     if (isTransacted()) {
       getSession().commit();
-    }
-    else if (getSessionAckMode(getAckMode()) == Session.CLIENT_ACKNOWLEDGE) {
+    } else if (getSessionAckMode(getAckMode()) == Session.CLIENT_ACKNOWLEDGE) {
       lastMsg.acknowledge(); // acknowledge all consumed messages till now
     }
+  }
+
+  @Override
+  public void beforeCheckpoint(long windowId)
+  {
   }
 
   @Override
@@ -414,9 +408,8 @@ public abstract class AbstractJMSInputOperator<T> extends JMSBase implements Inp
   public void committed(long windowId)
   {
     try {
-      idempotentStorageManager.deleteUpTo(context.getId(), windowId);
-    }
-    catch (IOException e) {
+      windowDataManager.committed(windowId);
+    } catch (IOException e) {
       throw new RuntimeException("committing", e);
     }
   }
@@ -438,8 +431,7 @@ public abstract class AbstractJMSInputOperator<T> extends JMSBase implements Inp
       consumer = null;
 
       super.cleanup();
-    }
-    catch (JMSException ex) {
+    } catch (JMSException ex) {
       throw new RuntimeException("at cleanup", ex);
     }
   }
@@ -447,7 +439,7 @@ public abstract class AbstractJMSInputOperator<T> extends JMSBase implements Inp
   @Override
   public void teardown()
   {
-    idempotentStorageManager.teardown();
+    windowDataManager.teardown();
   }
 
   /**
@@ -500,17 +492,27 @@ public abstract class AbstractJMSInputOperator<T> extends JMSBase implements Inp
    *
    * @param storageManager
    */
-  public void setIdempotentStorageManager(IdempotentStorageManager storageManager)
+  public void setWindowDataManager(WindowDataManager storageManager)
   {
-    this.idempotentStorageManager = storageManager;
+    this.windowDataManager = storageManager;
   }
 
   /**
    * @return the idempotent storage manager.
    */
-  public IdempotentStorageManager getIdempotentStorageManager()
+  public WindowDataManager getWindowDataManager()
   {
-    return this.idempotentStorageManager;
+    return this.windowDataManager;
+  }
+
+  /**
+   * Sets this transacted value
+   *
+   * @param value    new value for transacted
+   */
+  public void setTransacted(boolean value)
+  {
+    transacted = value;
   }
 
   protected abstract void emit(T payload);

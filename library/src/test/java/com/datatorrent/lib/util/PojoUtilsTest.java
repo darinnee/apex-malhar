@@ -1,22 +1,46 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.util;
 
+import org.junit.Assert;
+import org.junit.Test;
+
+import com.datatorrent.lib.expression.Expression;
+import com.datatorrent.lib.util.PojoUtils.Getter;
+import com.datatorrent.lib.util.PojoUtils.GetterBoolean;
+import com.datatorrent.lib.util.PojoUtils.GetterByte;
+import com.datatorrent.lib.util.PojoUtils.GetterChar;
+import com.datatorrent.lib.util.PojoUtils.GetterDouble;
+import com.datatorrent.lib.util.PojoUtils.GetterFloat;
+import com.datatorrent.lib.util.PojoUtils.GetterInt;
+import com.datatorrent.lib.util.PojoUtils.GetterLong;
+import com.datatorrent.lib.util.PojoUtils.GetterShort;
+import com.datatorrent.lib.util.PojoUtils.Setter;
+import com.datatorrent.lib.util.PojoUtils.SetterBoolean;
+import com.datatorrent.lib.util.PojoUtils.SetterByte;
+import com.datatorrent.lib.util.PojoUtils.SetterInt;
+import com.datatorrent.lib.util.PojoUtils.SetterLong;
+import com.datatorrent.lib.util.PojoUtils.SetterShort;
+
 import static com.datatorrent.lib.util.PojoUtils.constructGetter;
 import static com.datatorrent.lib.util.PojoUtils.constructSetter;
+import static com.datatorrent.lib.util.PojoUtils.createExpression;
 import static com.datatorrent.lib.util.PojoUtils.createGetter;
 import static com.datatorrent.lib.util.PojoUtils.createGetterBoolean;
 import static com.datatorrent.lib.util.PojoUtils.createGetterByte;
@@ -36,29 +60,11 @@ import static com.datatorrent.lib.util.PojoUtils.createSetterInt;
 import static com.datatorrent.lib.util.PojoUtils.createSetterLong;
 import static com.datatorrent.lib.util.PojoUtils.createSetterShort;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-import org.junit.Assert;
-import org.junit.Test;
-
-import com.datatorrent.lib.util.PojoUtils.GetterBoolean;
-import com.datatorrent.lib.util.PojoUtils.GetterByte;
-import com.datatorrent.lib.util.PojoUtils.GetterChar;
-import com.datatorrent.lib.util.PojoUtils.GetterDouble;
-import com.datatorrent.lib.util.PojoUtils.GetterFloat;
-import com.datatorrent.lib.util.PojoUtils.GetterInt;
-import com.datatorrent.lib.util.PojoUtils.GetterLong;
-import com.datatorrent.lib.util.PojoUtils.Getter;
-import com.datatorrent.lib.util.PojoUtils.GetterShort;
-import com.datatorrent.lib.util.PojoUtils.Setter;
-import com.datatorrent.lib.util.PojoUtils.SetterBoolean;
-import com.datatorrent.lib.util.PojoUtils.SetterByte;
-import com.datatorrent.lib.util.PojoUtils.SetterInt;
-import com.datatorrent.lib.util.PojoUtils.SetterLong;
-import com.datatorrent.lib.util.PojoUtils.SetterShort;
-
-import com.esotericsoftware.kryo.Kryo;
 
 
 public class PojoUtilsTest
@@ -71,7 +77,7 @@ public class PojoUtilsTest
   @Test
   public void testGetters() throws Exception
   {
-    /* let mvn know that janino is dynamically loaded jar */
+//    /* let mvn know that janino is dynamically loaded jar */
     Assert.assertNotNull(org.codehaus.janino.util.AutoIndentWriter.class);
 
     GetterBoolean<Object> getBoolean = createGetterBoolean(fqcn, "innerObj.boolVal");
@@ -103,14 +109,13 @@ public class PojoUtilsTest
 
     Getter<Object, Object> getObject = createGetter(fqcn, "innerObj.objVal", Object.class);
     assertEquals(testObj.innerObj.getObjVal(), getObject.get(testObj));
-
   }
 
   @Test
   public void testSerialization() throws Exception
   {
     GetterBoolean<Object> getBoolean = createGetterBoolean(fqcn, "innerObj.boolVal");
-    TestUtils.clone(new Kryo(), getBoolean);
+    KryoCloneUtils.cloneObject(getBoolean);
   }
 
   @Test
@@ -283,7 +288,8 @@ public class PojoUtilsTest
     }
 
     @SuppressWarnings("unused")
-    public void setIntVal(Integer intVal) {
+    public void setIntVal(Integer intVal)
+    {
       intField = intVal;
     }
 
@@ -304,7 +310,6 @@ public class PojoUtilsTest
     {
       throw new UnsupportedOperationException("not the right method");
     }
-
   }
 
   @Test
@@ -405,31 +410,33 @@ public class PojoUtilsTest
     assertEquals(8, testPojo.getIntVal());
 
     SetterByte<Object> setterByte = createSetterByte(testPojoClass, TestPojo.INT_FIELD_NAME);
-    setterByte.set(testPojo, (byte) 9);
+    setterByte.set(testPojo, (byte)9);
     assertEquals(9, testPojo.intField);
 
     setterByte = (SetterByte<Object>)constructSetter(testPojoClass, TestPojo.INT_FIELD_NAME, byte.class);
-    setterByte.set(testPojo, (byte) 10);
+    setterByte.set(testPojo, (byte)10);
     assertEquals(10, testPojo.intField);
 
     setterByte = createSetterByte(testPojoClass, TestPojo.INT_METHOD_NAME);
-    setterByte.set(testPojo, (byte) 11);
+    setterByte.set(testPojo, (byte)11);
     assertEquals(11, testPojo.getIntVal());
 
     setterByte = ((SetterByte<Object>)constructSetter(testPojoClass, TestPojo.INT_METHOD_NAME, byte.class));
-    setterByte.set(testPojo, (byte) 12);
+    setterByte.set(testPojo, (byte)12);
     assertEquals(12, testPojo.getIntVal());
 
-    createSetter(testPojoClass, TestPojo.INT_FIELD_NAME, Byte.class).set(testPojo, Byte.valueOf((byte) 13));
+    createSetter(testPojoClass, TestPojo.INT_FIELD_NAME, Byte.class).set(testPojo, Byte.valueOf((byte)13));
     assertEquals(13, testPojo.intField);
 
-    ((Setter<Object, Byte>)constructSetter(testPojoClass, TestPojo.INT_FIELD_NAME, Byte.class)).set(testPojo, Byte.valueOf((byte) 14));
+    ((Setter<Object, Byte>)constructSetter(testPojoClass, TestPojo.INT_FIELD_NAME, Byte.class)).set(testPojo,
+        Byte.valueOf((byte)14));
     assertEquals(14, testPojo.getIntVal());
 
-    createSetter(testPojoClass, TestPojo.INT_METHOD_NAME, Byte.class).set(testPojo, Byte.valueOf((byte) 15));
+    createSetter(testPojoClass, TestPojo.INT_METHOD_NAME, Byte.class).set(testPojo, Byte.valueOf((byte)15));
     assertEquals(15, testPojo.getIntVal());
 
-    ((Setter<Object, Byte>)constructSetter(testPojoClass, TestPojo.INT_METHOD_NAME, Byte.class)).set(testPojo, Byte.valueOf((byte) 16));
+    ((Setter<Object, Byte>)constructSetter(testPojoClass, TestPojo.INT_METHOD_NAME, Byte.class)).set(testPojo,
+        Byte.valueOf((byte)16));
     assertEquals(16, testPojo.getIntVal());
 
     SetterShort<Object> setterShort = createSetterShort(testPojoClass, TestPojo.INT_FIELD_NAME);
@@ -444,8 +451,8 @@ public class PojoUtilsTest
       @SuppressWarnings("unused")
       SetterLong<Object> setterLong = createSetterLong(testPojoClass, TestPojo.INT_FIELD_NAME);
       fail("long can't be assigned to the int field");
-    }
-    catch (Exception ignored) {
+    } catch (Exception ignored) {
+      //ignored
     }
 
   }
@@ -456,14 +463,6 @@ public class PojoUtilsTest
     final Class<?> testPojoClass = TestPojo.class;
     SetterBoolean<Object> setterBoolean = createSetterBoolean(testPojoClass, "boolVal");
     setterBoolean.set(new TestPojo(3), false);
-  }
-
-  @Test (expected = RuntimeException.class)
-  public void testPrivateField()
-  {
-    final Class<?> testPojoClass = TestPojo.class;
-    @SuppressWarnings("unused")
-    SetterInt<Object> setterInt = createSetterInt(testPojoClass, "privateIntField");
   }
 
   @Test (expected = RuntimeException.class)
@@ -486,5 +485,95 @@ public class PojoUtilsTest
   {
     final Class<?> testPojoClass = TestPojo.class;
     createSetter(testPojoClass, TestPojo.INT_FIELD_NAME, int.class);
+  }
+
+  @Test (expected = RuntimeException.class)
+  public void testPrivateFieldExpression()
+  {
+    final Class<?> testPojoClass = TestPojo.class;
+    createExpression(testPojoClass, "privateIntField", int.class);
+  }
+
+  @Test
+  public void testBasicExpression()
+  {
+    TestPojo testObj = new TestPojo(1);
+    Class<?> testObjClass = testObj.getClass();
+
+    assertEquals(testObj.getIntVal(), createExpression(testObjClass, "intField", int.class).execute(testObj));
+    assertEquals(testObj.getIntVal(), createExpression(testObjClass, "intVal", int.class).execute(testObj));
+  }
+
+  @Test (expected = RuntimeException.class)
+  public void testPrivateField()
+  {
+    final Class<?> testPojoClass = TestPojo.class;
+    @SuppressWarnings("unused")
+    SetterInt<Object> setterInt = createSetterInt(testPojoClass, "privateIntField");
+  }
+
+  @Test
+  public void testNestedPOJOExpression()
+  {
+    // Evaluate and execute expression for simple inner boolean value expressed as similar to PojoUtils Getter.
+    Expression expression = createExpression(fqcn, "innerObj.boolVal", boolean.class);
+    assertTrue((Boolean)expression.execute(testObj));
+
+    // Evaluate and execute expression for simple inner boolean value expressed with expression syntax.
+    expression = createExpression(fqcn, "{$.innerObj.boolVal}", boolean.class);
+    assertTrue((Boolean)expression.execute(testObj));
+
+    // Evaluate and execute expression for simple inner boolean value expressed with expression syntax where there is no compiler hint.
+    expression = createExpression(fqcn, "$.innerObj.boolVal", boolean.class);
+    assertTrue((Boolean)expression.execute(testObj));
+
+    // Evaluate and execute expression for simple inner boolean value and not the returned value.
+    expression = createExpression(fqcn, "!{$.innerObj.boolVal}", boolean.class);
+    assertFalse((Boolean)expression.execute(testObj));
+
+    // Access the object with compiler hint and then innerObj and boolVal are publicly accessible method.
+    expression = createExpression(fqcn, "!{$}.innerObj.boolVal", boolean.class);
+    assertFalse((Boolean)expression.execute(testObj));
+  }
+
+  @Test
+  public void testComplexPOJOExpression()
+  {
+    Expression expression = createExpression(fqcn, "{$}.innerObj.boolVal && ({$}.innerObj.intVal == 11)", boolean.class);
+    assertTrue((Boolean)expression.execute(testObj));
+
+    expression = createExpression(fqcn, "valueOf({$.innerObj.privateIntVal}) + substring({$.innerObj.stringVal}, 2) + {$.innerObj.privateStringVal}.length()",
+        String.class, new String[]{"org.apache.commons.lang3.StringUtils.*",
+            "java.lang.String.valueOf"});
+    assertEquals("11llo5", expression.execute(testObj));
+
+    expression = createExpression(fqcn, "round(pow({$.innerObj.privateFloatVal}, {$.innerObj.privateDoubleVal}))", long.class, new String[] {"java.lang.Math.*"});
+    assertEquals(46162L, expression.execute(testObj));
+
+    expression = createExpression(fqcn, "{$.innerObj.privateFloatVal} > 0 && {$.innerObj.privateStringVal}.length() > 0", boolean.class);
+    assertEquals(true, expression.execute(testObj));
+  }
+
+  @Test
+  public void testExpressionSerialization()
+  {
+    Expression expression = createExpression(fqcn, "{$.innerObj.boolVal}", boolean.class);
+    assertTrue((Boolean)expression.execute(testObj));
+  }
+
+  @Test
+  public void testCustomImports()
+  {
+    Expression expression = createExpression(fqcn, "concat({$.innerObj.stringVal}, {$.innerObj.privateStringVal})",
+        String.class, new String[] {TestImports.class.getName() + ".concat"});
+    assertEquals("hello hello", expression.execute(testObj));
+  }
+
+  public static class TestImports
+  {
+    public static String concat(String a, String b)
+    {
+      return a + " " + b;
+    }
   }
 }

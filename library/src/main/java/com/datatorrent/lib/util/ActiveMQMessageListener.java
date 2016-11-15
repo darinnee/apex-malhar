@@ -1,25 +1,38 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.util;
 
 import java.util.HashMap;
-import javax.jms.*;
-import org.apache.activemq.ActiveMQConnectionFactory;
+
+import javax.jms.Connection;
+import javax.jms.Destination;
+import javax.jms.JMSException;
+import javax.jms.Message;
+import javax.jms.MessageConsumer;
+import javax.jms.MessageListener;
+import javax.jms.Session;
+import javax.jms.Topic;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.activemq.ActiveMQConnectionFactory;
 
 /**
  *  This is the AcctiveMQ message listener (consumer) outside of Malhar/Hadoop.
@@ -151,8 +164,7 @@ public class ActiveMQMessageListener implements MessageListener, Runnable
       try {
         logger.warn("Reached maximum receive messages of {}", maximumReceiveMessages);
         consumer.setMessageListener(null);
-      }
-      catch (JMSException ex) {
+      } catch (JMSException ex) {
         logger.debug(ex.getLocalizedMessage());
       }
       return;
@@ -164,8 +176,7 @@ public class ActiveMQMessageListener implements MessageListener, Runnable
   {
     try {
       Thread.sleep(2000);  // how long this should be?
-    }
-    catch (InterruptedException ex) {
+    } catch (InterruptedException ex) {
       logger.debug(ex.getLocalizedMessage());
     }
   }
@@ -176,8 +187,7 @@ public class ActiveMQMessageListener implements MessageListener, Runnable
       consumer.close();
       session.close();
       connection.close();
-    }
-    catch (JMSException ex) {
+    } catch (JMSException ex) {
       logger.debug(ex.getLocalizedMessage());
     }
   }

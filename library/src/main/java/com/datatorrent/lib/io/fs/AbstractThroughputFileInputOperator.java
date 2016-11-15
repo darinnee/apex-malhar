@@ -1,28 +1,32 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.io.fs;
 
-import com.datatorrent.api.Stats.OperatorStats;
-import com.datatorrent.lib.counters.BasicCounters;
-
 import java.util.Collection;
 
-import org.apache.commons.lang.mutable.MutableLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.commons.lang.mutable.MutableLong;
+
+import com.datatorrent.api.Stats.OperatorStats;
+import com.datatorrent.lib.counters.BasicCounters;
 
 /**
  * This is the base implementation for a file input operator, which scans a directory for files.&nbsp;
@@ -45,6 +49,7 @@ import org.slf4j.LoggerFactory;
  *
  * @since 1.0.4
  */
+@org.apache.hadoop.classification.InterfaceStability.Evolving
 public abstract class AbstractThroughputFileInputOperator<T> extends AbstractFileInputOperator<T>
 {
   private static final Logger LOG = LoggerFactory.getLogger(AbstractThroughputFileInputOperator.class);
@@ -130,7 +135,7 @@ public abstract class AbstractThroughputFileInputOperator<T> extends AbstractFil
     int newOperatorCount;
     int totalFileCount = 0;
 
-    for(Partition<AbstractFileInputOperator<T>> partition : partitions) {
+    for (Partition<AbstractFileInputOperator<T>> partition : partitions) {
       AbstractFileInputOperator<T> oper = partition.getPartitionedInstance();
       totalFileCount += oper.failedFiles.size();
       totalFileCount += oper.pendingFiles.size();
@@ -141,11 +146,10 @@ public abstract class AbstractThroughputFileInputOperator<T> extends AbstractFil
       }
     }
 
-    if(!isInitialParitition) {
+    if (!isInitialParitition) {
       LOG.debug("definePartitions: Total File Count: {}", totalFileCount);
       newOperatorCount = computeOperatorCount(totalFileCount);
-    }
-    else {
+    } else {
       newOperatorCount = partitionCount;
     }
 
@@ -156,13 +160,13 @@ public abstract class AbstractThroughputFileInputOperator<T> extends AbstractFil
   {
     int newOperatorCount = totalFileCount / preferredMaxPendingFilesPerOperator;
 
-    if(totalFileCount % preferredMaxPendingFilesPerOperator > 0) {
+    if (totalFileCount % preferredMaxPendingFilesPerOperator > 0) {
       newOperatorCount++;
     }
-    if(newOperatorCount > partitionCount) {
+    if (newOperatorCount > partitionCount) {
       newOperatorCount = partitionCount;
     }
-    if(newOperatorCount == 0) {
+    if (newOperatorCount == 0) {
       newOperatorCount = 1;
     }
 
@@ -175,17 +179,17 @@ public abstract class AbstractThroughputFileInputOperator<T> extends AbstractFil
   {
     BasicCounters<MutableLong> fileCounters = null;
 
-    for(OperatorStats operatorStats: batchedOperatorStats.getLastWindowedStats()) {
-      if(operatorStats.counters != null) {
-        fileCounters = (BasicCounters<MutableLong>) operatorStats.counters;
+    for (OperatorStats operatorStats : batchedOperatorStats.getLastWindowedStats()) {
+      if (operatorStats.counters != null) {
+        fileCounters = (BasicCounters<MutableLong>)operatorStats.counters;
       }
     }
 
     Response response = new Response();
 
-    if(fileCounters != null &&
-       fileCounters.getCounter(FileCounters.PENDING_FILES).longValue() > 0L ||
-       System.currentTimeMillis() - repartitionInterval <= lastRepartition) {
+    if (fileCounters != null &&
+        fileCounters.getCounter(FileCounters.PENDING_FILES).longValue() > 0L ||
+        System.currentTimeMillis() - repartitionInterval <= lastRepartition) {
       response.repartitionRequired = false;
       return response;
     }

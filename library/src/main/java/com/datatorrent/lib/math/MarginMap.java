@@ -1,27 +1,32 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.math;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import org.apache.commons.lang.mutable.MutableDouble;
 
 import com.datatorrent.api.DefaultInputPort;
 import com.datatorrent.api.DefaultOutputPort;
 import com.datatorrent.lib.util.BaseNumberKeyValueOperator;
 import com.datatorrent.lib.util.UnifierHashMap;
-import java.util.HashMap;
-import java.util.Map;
-import org.apache.commons.lang.mutable.MutableDouble;
 
 
 /**
@@ -49,7 +54,7 @@ public class MarginMap<K, V extends Number> extends BaseNumberKeyValueOperator<K
 {
   /**
    * Numerator input port that takes a map.
-   */  
+   */
   public final transient DefaultInputPort<Map<K, V>> numerator = new DefaultInputPort<Map<K, V>>()
   {
     /**
@@ -61,7 +66,7 @@ public class MarginMap<K, V extends Number> extends BaseNumberKeyValueOperator<K
       addTuple(tuple, numerators);
     }
   };
-  
+
   /**
    * Denominator input port that takes a map.
    */
@@ -96,7 +101,7 @@ public class MarginMap<K, V extends Number> extends BaseNumberKeyValueOperator<K
       val.add(e.getValue().doubleValue());
     }
   }
-  
+
   /*
    * Output margin port that emits hashmap.
    */
@@ -141,18 +146,16 @@ public class MarginMap<K, V extends Number> extends BaseNumberKeyValueOperator<K
   {
     HashMap<K, V> tuples = new HashMap<K, V>();
     Double val;
-    for (Map.Entry<K, MutableDouble> e: denominators.entrySet()) {
+    for (Map.Entry<K, MutableDouble> e : denominators.entrySet()) {
       MutableDouble nval = numerators.get(e.getKey());
       if (nval == null) {
         nval = new MutableDouble(0.0);
-      }
-      else {
+      } else {
         numerators.remove(e.getKey()); // so that all left over keys can be reported
       }
       if (percent) {
         val = (1 - nval.doubleValue() / e.getValue().doubleValue()) * 100;
-      }
-      else {
+      } else {
         val = 1 - nval.doubleValue() / e.getValue().doubleValue();
       }
       tuples.put(e.getKey(), getValue(val.doubleValue()));

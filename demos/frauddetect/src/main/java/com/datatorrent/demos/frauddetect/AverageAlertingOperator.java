@@ -1,37 +1,42 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.demos.frauddetect;
 
-import com.datatorrent.common.util.BaseOperator;
-import com.datatorrent.api.DefaultInputPort;
-import com.datatorrent.api.DefaultOutputPort;
-import com.datatorrent.lib.util.KeyValPair;
-import com.datatorrent.demos.frauddetect.util.JsonUtils;
-import org.apache.commons.lang.mutable.MutableDouble;
-import org.codehaus.jackson.JsonFactory;
-import org.codehaus.jackson.map.ObjectMapper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import javax.validation.constraints.NotNull;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import javax.validation.constraints.NotNull;
+
+import org.codehaus.jackson.JsonFactory;
+import org.codehaus.jackson.map.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.commons.lang.mutable.MutableDouble;
+
+import com.datatorrent.api.DefaultInputPort;
+import com.datatorrent.api.DefaultOutputPort;
+import com.datatorrent.common.util.BaseOperator;
+import com.datatorrent.demos.frauddetect.util.JsonUtils;
+import com.datatorrent.lib.util.KeyValPair;
 
 /**
  * Generate an alert if the current transaction amount received on tx input port for the given key is greater by n %
@@ -42,8 +47,8 @@ import java.util.Map;
 public class AverageAlertingOperator extends BaseOperator
 {
   private static final Logger Log = LoggerFactory.getLogger(AverageAlertingOperator.class);
-  private transient final JsonFactory jsonFactory = new JsonFactory();
-  private transient final ObjectMapper mapper = new ObjectMapper(jsonFactory);
+  private final transient JsonFactory jsonFactory = new JsonFactory();
+  private final transient ObjectMapper mapper = new ObjectMapper(jsonFactory);
   private Map<MerchantKey, MutableDouble> lastSMAMap = new HashMap<MerchantKey, MutableDouble>();
   private Map<MerchantKey, MutableDouble> currentSMAMap = new HashMap<MerchantKey, MutableDouble>();
   private List<AverageAlertData> alerts = new ArrayList<AverageAlertData>();
@@ -54,7 +59,7 @@ public class AverageAlertingOperator extends BaseOperator
   public final transient DefaultOutputPort<String> avgAlertOutputPort = new DefaultOutputPort<String>();
   public final transient DefaultOutputPort<Map<String, Object>> avgAlertNotificationPort = new DefaultOutputPort<Map<String, Object>>();
   public final transient DefaultInputPort<KeyValPair<MerchantKey, Double>> smaInputPort =
-          new DefaultInputPort<KeyValPair<MerchantKey, Double>>()
+      new DefaultInputPort<KeyValPair<MerchantKey, Double>>()
   {
     @Override
     public void process(KeyValPair<MerchantKey, Double> tuple)
@@ -64,8 +69,7 @@ public class AverageAlertingOperator extends BaseOperator
         double sma = tuple.getValue();
         currentSMAMap.put(tuple.getKey(), new MutableDouble(sma));
         //lastSMAMap.put(tuple.getKey(), new MutableDouble(sma));
-      }
-      else { // move the current SMA value to the last SMA Map
+      } else { // move the current SMA value to the last SMA Map
         //lastSMAMap.get(tuple.getKey()).setValue(currentSma.getValue());
         currentSma.setValue(tuple.getValue());  // update the current SMA value
       }
@@ -73,7 +77,7 @@ public class AverageAlertingOperator extends BaseOperator
 
   };
   public final transient DefaultInputPort<KeyValPair<MerchantKey, Long>> txInputPort =
-          new DefaultInputPort<KeyValPair<MerchantKey, Long>>()
+      new DefaultInputPort<KeyValPair<MerchantKey, Long>>()
   {
     @Override
     public void process(KeyValPair<MerchantKey, Long> tuple)
@@ -97,8 +101,7 @@ public class AverageAlertingOperator extends BaseOperator
         //if (userGenerated) {   // if its user generated only the pass it to WebSocket
         if (merchantKey.merchantType == MerchantTransaction.MerchantType.BRICK_AND_MORTAR) {
           avgAlertNotificationPort.emit(getOutputData(data, String.format(brickMortarAlertMsg, txValue, change, lastSmaValue, merchantKey.merchantId, merchantKey.terminalId)));
-        }
-        else { // its internet based
+        } else { // its internet based
           avgAlertNotificationPort.emit(getOutputData(data, String.format(internetAlertMsg, txValue, change, lastSmaValue, merchantKey.merchantId)));
 
         }
@@ -113,8 +116,7 @@ public class AverageAlertingOperator extends BaseOperator
     for (AverageAlertData data : alerts) {
       try {
         avgAlertOutputPort.emit(JsonUtils.toJson(data));
-      }
-      catch (IOException e) {
+      } catch (IOException e) {
         logger.warn("Exception while converting object to JSON", e);
       }
     }
@@ -128,8 +130,7 @@ public class AverageAlertingOperator extends BaseOperator
       if (lastSma == null) {
         lastSma = new MutableDouble(currentSma.doubleValue());
         lastSMAMap.put(key, lastSma);
-      }
-      else {
+      } else {
         lastSma.setValue(currentSma.getValue());
       }
     }
@@ -164,8 +165,7 @@ public class AverageAlertingOperator extends BaseOperator
     try {
       String str = mapper.writeValueAsString(output);
       logger.debug("user generated tx alert: " + str);
-    }
-    catch (Exception exc) {
+    } catch (Exception exc) {
       //ignore
     }
     return output;

@@ -1,23 +1,24 @@
-/*
- * Copyright (c) 2015 DataTorrent, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.appdata.schemas;
 
-import it.unimi.dsi.fastutil.objects.Object2IntLinkedOpenHashMap;
 import java.io.Serializable;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -25,16 +26,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.datatorrent.lib.appdata.gpo.Serde;
 import com.datatorrent.lib.appdata.gpo.SerdeObjectPayloadFix;
+
+import it.unimi.dsi.fastutil.objects.Object2IntLinkedOpenHashMap;
 
 /**
  * This class manages the storage of fields in app data. It is used in {@link GPOMutable} objects
@@ -115,8 +118,7 @@ public class FieldsDescriptor implements Serializable
    * @param fieldToType A mapping from field names to the type of the field.
    * @param fieldToSerdeObject A mapping from field names to the corresponding serde object.
    */
-  public FieldsDescriptor(Map<String, Type> fieldToType,
-                          Map<String, Serde> fieldToSerdeObject)
+  public FieldsDescriptor(Map<String, Type> fieldToType, Map<String, Serde> fieldToSerdeObject)
   {
     setFieldToType(fieldToType);
     compressedTypes = Sets.newHashSet();
@@ -125,23 +127,17 @@ public class FieldsDescriptor implements Serializable
 
     List<String> fieldNames = typeToFields.get(Type.OBJECT);
 
-    if(fieldNames == null) {
-      throw new IllegalArgumentException("There are no fields of type " + Type.OBJECT +
-                                         " in this fieldsdescriptor");
-    }
-    else {
+    if (fieldNames == null) {
+      throw new IllegalArgumentException("There are no fields of type " + Type.OBJECT + " in this fieldsdescriptor");
+    } else {
       serdes = new Serde[fieldNames.size()];
 
       //Insert serdes in corresponding order
-      for(int index = 0;
-          index < fieldNames.size();
-          index++) {
+      for (int index = 0; index < fieldNames.size(); index++) {
         String fieldName = fieldNames.get(index);
         Serde serdeObject = fieldToSerdeObject.get(fieldName);
-        if(serdeObject == null) {
-          throw new IllegalArgumentException("The field "
-                                             + fieldName
-                                             + " doesn't have a serde object.");
+        if (serdeObject == null) {
+          throw new IllegalArgumentException("The field " + fieldName + " doesn't have a serde object.");
         }
 
         serdes[index] = serdeObject;
@@ -149,9 +145,8 @@ public class FieldsDescriptor implements Serializable
     }
   }
 
-  public FieldsDescriptor(Map<String, Type> fieldToType,
-                          Map<String, Serde> fieldToSerdeObject,
-                          SerdeObjectPayloadFix serdePayloadFix)
+  public FieldsDescriptor(Map<String, Type> fieldToType, Map<String, Serde> fieldToSerdeObject,
+      SerdeObjectPayloadFix serdePayloadFix)
   {
     this(fieldToType, fieldToSerdeObject);
     this.serdePayloadFix = serdePayloadFix;
@@ -182,13 +177,13 @@ public class FieldsDescriptor implements Serializable
     typeToFieldToIndex = Maps.newHashMap();
     typeToFields = Maps.newHashMap();
 
-    for(Map.Entry<String, Type> entry: fieldToType.entrySet()) {
+    for (Map.Entry<String, Type> entry : fieldToType.entrySet()) {
       String field = entry.getKey();
       Type type = entry.getValue();
 
       List<String> fieldsList = typeToFields.get(type);
 
-      if(fieldsList == null) {
+      if (fieldsList == null) {
         fieldsList = Lists.newArrayList();
         typeToFields.put(type, fieldsList);
       }
@@ -197,22 +192,19 @@ public class FieldsDescriptor implements Serializable
     }
 
     //ensure consistent ordering of fields
-    for(Map.Entry<Type, List<String>> entry: typeToFields.entrySet()) {
+    for (Map.Entry<Type, List<String>> entry : typeToFields.entrySet()) {
       Type type = entry.getKey();
       List<String> tempFields = entry.getValue();
 
       Collections.sort(tempFields);
       Object2IntLinkedOpenHashMap<String> fieldToIndex = new Object2IntLinkedOpenHashMap<String>();
 
-      for(int index = 0;
-          index < tempFields.size();
-          index++) {
+      for (int index = 0; index < tempFields.size(); index++) {
         String field = tempFields.get(index);
 
-        if(compressedTypes.contains(type)) {
+        if (compressedTypes.contains(type)) {
           fieldToIndex.put(field, 0);
-        }
-        else {
+        } else {
           fieldToIndex.put(field, index);
         }
       }
@@ -222,10 +214,9 @@ public class FieldsDescriptor implements Serializable
 
     //Types
 
-    if(!typeToFields.isEmpty()) {
+    if (!typeToFields.isEmpty()) {
       types = EnumSet.copyOf(typeToFields.keySet());
-    }
-    else {
+    } else {
       types = Sets.newHashSet();
     }
 
@@ -242,13 +233,12 @@ public class FieldsDescriptor implements Serializable
     //Array Sizes
     typeToSize = new Object2IntLinkedOpenHashMap<Type>();
 
-    for(Map.Entry<Type, List<String>> entry: typeToFields.entrySet()) {
+    for (Map.Entry<Type, List<String>> entry : typeToFields.entrySet()) {
       Type type = entry.getKey();
 
-      if(compressedTypes.contains(type)) {
+      if (compressedTypes.contains(type)) {
         getTypeToSize().put(type, 1);
-      }
-      else {
+      } else {
         getTypeToSize().put(type, entry.getValue().size());
       }
     }
@@ -269,8 +259,9 @@ public class FieldsDescriptor implements Serializable
    * @param fieldToType The field to type map to set for this {@link FieldsDescriptor}
    * object.
    */
-  private void setFieldToType(Map<String, Type> fieldToType) {
-    for(Map.Entry<String, Type> entry: fieldToType.entrySet()) {
+  private void setFieldToType(Map<String, Type> fieldToType)
+  {
+    for (Map.Entry<String, Type> entry : fieldToType.entrySet()) {
       Preconditions.checkNotNull(entry.getKey());
       Preconditions.checkNotNull(entry.getValue());
     }
@@ -284,7 +275,7 @@ public class FieldsDescriptor implements Serializable
    */
   private void setCompressedTypes(Set<Type> compressedTypes)
   {
-    for(Type type: compressedTypes) {
+    for (Type type : compressedTypes) {
       Preconditions.checkNotNull(type);
     }
 
@@ -316,7 +307,7 @@ public class FieldsDescriptor implements Serializable
    */
   public Fields getFields()
   {
-    if(fields == null) {
+    if (fields == null) {
       fields = new Fields(fieldToType.keySet());
     }
 
@@ -333,7 +324,7 @@ public class FieldsDescriptor implements Serializable
   {
     Map<String, Type> newFieldToType = Maps.newHashMap();
 
-    for(String field: fields.getFields()) {
+    for (String field : fields.getFields()) {
       Type type = fieldToType.get(field);
       newFieldToType.put(field, type);
     }
@@ -423,17 +414,19 @@ public class FieldsDescriptor implements Serializable
   @Override
   public boolean equals(Object obj)
   {
-    if(obj == null) {
+    if (obj == null) {
       return false;
     }
-    if(getClass() != obj.getClass()) {
+    if (getClass() != obj.getClass()) {
       return false;
     }
     final FieldsDescriptor other = (FieldsDescriptor)obj;
-    if(this.fieldToType != other.fieldToType && (this.fieldToType == null || !this.fieldToType.equals(other.fieldToType))) {
+    if (this.fieldToType != other.fieldToType && (this.fieldToType == null || !this.fieldToType.equals(
+        other.fieldToType))) {
       return false;
     }
-    if(this.compressedTypes != other.compressedTypes && (this.compressedTypes == null || !this.compressedTypes.equals(other.compressedTypes))) {
+    if (this.compressedTypes != other.compressedTypes && (this.compressedTypes == null || !this.compressedTypes.equals(
+        other.compressedTypes))) {
       return false;
     }
     return true;

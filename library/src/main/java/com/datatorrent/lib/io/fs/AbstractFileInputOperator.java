@@ -1,47 +1,70 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.io.fs;
 
-import java.io.*;
-import java.util.*;
+import java.io.BufferedReader;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import javax.validation.constraints.NotNull;
 
-import com.esotericsoftware.kryo.Kryo;
-import com.esotericsoftware.kryo.io.Input;
-import com.esotericsoftware.kryo.io.Output;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.apex.malhar.lib.fs.LineByLineFileInputOperator;
+import org.apache.apex.malhar.lib.wal.WindowDataManager;
 import org.apache.commons.lang.mutable.MutableLong;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 
-import com.datatorrent.lib.counters.BasicCounters;
-import com.datatorrent.lib.io.IdempotentStorageManager;
-import com.datatorrent.api.*;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+
 import com.datatorrent.api.Context.CountersAggregator;
 import com.datatorrent.api.Context.OperatorContext;
+import com.datatorrent.api.DefaultOutputPort;
+import com.datatorrent.api.DefaultPartition;
+import com.datatorrent.api.InputOperator;
+import com.datatorrent.api.Operator;
+import com.datatorrent.api.Partitioner;
+import com.datatorrent.api.StatsListener;
+
+import com.datatorrent.lib.counters.BasicCounters;
+import com.datatorrent.lib.util.KryoCloneUtils;
 
 /**
  * This is the base implementation of a directory input operator, which scans a directory for files.&nbsp;
@@ -73,8 +96,9 @@ import com.datatorrent.api.Context.OperatorContext;
  * @param <T> The type of the object that this input operator reads.
  * @since 1.0.2
  */
+@org.apache.hadoop.classification.InterfaceStability.Evolving
 public abstract class AbstractFileInputOperator<T> implements InputOperator, Partitioner<AbstractFileInputOperator<T>>, StatsListener,
-  Operator.CheckpointListener
+    Operator.CheckpointListener, Operator.CheckpointNotificationListener
 {
   private static final Logger LOG = LoggerFactory.getLogger(AbstractFileInputOperator.class);
 
@@ -83,15 +107,15 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
   @NotNull
   protected DirectoryScanner scanner = new DirectoryScanner();
   protected int scanIntervalMillis = 5000;
-  protected int offset;
+  protected long offset;
   protected String currentFile;
   protected Set<String> processedFiles = new HashSet<String>();
   protected int emitBatchSize = 1000;
-  protected int currentPartitions = 1 ;
+  protected int currentPartitions = 1;
   protected int partitionCount = 1;
   private int retryCount = 0;
   private int maxRetryCount = 5;
-  transient protected int skipCount = 0;
+  protected transient long skipCount = 0;
   private transient OperatorContext context;
 
   private final BasicCounters<MutableLong> fileCounters = new BasicCounters<MutableLong>(MutableLong.class);
@@ -104,7 +128,7 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
   protected transient MutableLong pendingFileCount = new MutableLong();
 
   @NotNull
-  protected IdempotentStorageManager idempotentStorageManager = new IdempotentStorageManager.NoopIdempotentStorageManager();
+  private WindowDataManager windowDataManager = new WindowDataManager.NoopWindowDataManager();
   protected transient long currentWindowId;
   protected final transient LinkedList<RecoveryEntry> currentWindowRecoveryState = Lists.newLinkedList();
   protected int operatorId; //needed in partitioning
@@ -117,9 +141,10 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
    * failed file is retried for maxRetryCount number of times, after that the file is
    * ignored.
    */
-  protected static class FailedFile {
+  protected static class FailedFile
+  {
     String path;
-    int   offset;
+    long   offset;
     int    retryCount;
     long   lastFailedTime;
 
@@ -127,13 +152,15 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
     @SuppressWarnings("unused")
     protected FailedFile() {}
 
-    protected FailedFile(String path, int offset) {
+    protected FailedFile(String path, long offset)
+    {
       this.path = path;
       this.offset = offset;
       this.retryCount = 0;
     }
 
-    protected FailedFile(String path, int offset, int retryCount) {
+    protected FailedFile(String path, long offset, int retryCount)
+    {
       this.path = path;
       this.offset = offset;
       this.retryCount = retryCount;
@@ -243,7 +270,7 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
    * <p/>
    * @since 1.0.4
    */
-  public final static class FileCountersAggregator implements CountersAggregator, Serializable
+  public static final class FileCountersAggregator implements CountersAggregator, Serializable
   {
     private static final long serialVersionUID = 201409041428L;
     MutableLong totalLocalProcessedFiles = new MutableLong();
@@ -255,11 +282,11 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
     @SuppressWarnings("unchecked")
     public Object aggregate(Collection<?> countersList)
     {
-      if(countersList.isEmpty()) {
+      if (countersList.isEmpty()) {
         return null;
       }
 
-      BasicCounters<MutableLong> tempFileCounters = (BasicCounters<MutableLong>) countersList.iterator().next();
+      BasicCounters<MutableLong> tempFileCounters = (BasicCounters<MutableLong>)countersList.iterator().next();
       MutableLong globalProcessedFiles = tempFileCounters.getCounter(FileCounters.GLOBAL_PROCESSED_FILES);
       MutableLong globalNumberOfFailures = tempFileCounters.getCounter(FileCounters.GLOBAL_NUMBER_OF_FAILURES);
       MutableLong globalNumberOfRetries = tempFileCounters.getCounter(FileCounters.GLOBAL_NUMBER_OF_RETRIES);
@@ -268,8 +295,8 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
       totalLocalNumberOfFailures.setValue(0);
       totalLocalNumberOfRetries.setValue(0);
 
-      for(Object fileCounters: countersList) {
-        BasicCounters<MutableLong> basicFileCounters = (BasicCounters<MutableLong>) fileCounters;
+      for (Object fileCounters : countersList) {
+        BasicCounters<MutableLong> basicFileCounters = (BasicCounters<MutableLong>)fileCounters;
         totalLocalProcessedFiles.add(basicFileCounters.getCounter(FileCounters.LOCAL_PROCESSED_FILES));
         pendingFiles.add(basicFileCounters.getCounter(FileCounters.PENDING_FILES));
         totalLocalNumberOfFailures.add(basicFileCounters.getCounter(FileCounters.LOCAL_NUMBER_OF_FAILURES));
@@ -362,11 +389,11 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
 
   /**
    * Sets the idempotent storage manager on the operator.
-   * @param idempotentStorageManager  an {@link IdempotentStorageManager}
+   * @param windowDataManager  an {@link WindowDataManager}
    */
-  public void setIdempotentStorageManager(IdempotentStorageManager idempotentStorageManager)
+  public void setWindowDataManager(WindowDataManager windowDataManager)
   {
-    this.idempotentStorageManager = idempotentStorageManager;
+    this.windowDataManager = windowDataManager;
   }
 
   /**
@@ -374,9 +401,9 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
    *
    * @return the idempotent storage manager.
    */
-  public IdempotentStorageManager getIdempotentStorageManager()
+  public WindowDataManager getWindowDataManager()
   {
-    return idempotentStorageManager;
+    return windowDataManager;
   }
 
   /**
@@ -418,28 +445,20 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
       filePath = new Path(directory);
       configuration = new Configuration();
       fs = getFSInstance();
-    }
-    catch (IOException ex) {
+    } catch (IOException ex) {
       failureHandling(ex);
     }
 
-    fileCounters.setCounter(FileCounters.GLOBAL_PROCESSED_FILES,
-                            globalProcessedFileCount);
-    fileCounters.setCounter(FileCounters.LOCAL_PROCESSED_FILES,
-                            localProcessedFileCount);
-    fileCounters.setCounter(FileCounters.GLOBAL_NUMBER_OF_FAILURES,
-                            globalNumberOfFailures);
-    fileCounters.setCounter(FileCounters.LOCAL_NUMBER_OF_FAILURES,
-                            localNumberOfFailures);
-    fileCounters.setCounter(FileCounters.GLOBAL_NUMBER_OF_RETRIES,
-                            globalNumberOfRetries);
-    fileCounters.setCounter(FileCounters.LOCAL_NUMBER_OF_RETRIES,
-                            localNumberOfRetries);
-    fileCounters.setCounter(FileCounters.PENDING_FILES,
-                            pendingFileCount);
+    fileCounters.setCounter(FileCounters.GLOBAL_PROCESSED_FILES, globalProcessedFileCount);
+    fileCounters.setCounter(FileCounters.LOCAL_PROCESSED_FILES, localProcessedFileCount);
+    fileCounters.setCounter(FileCounters.GLOBAL_NUMBER_OF_FAILURES, globalNumberOfFailures);
+    fileCounters.setCounter(FileCounters.LOCAL_NUMBER_OF_FAILURES, localNumberOfFailures);
+    fileCounters.setCounter(FileCounters.GLOBAL_NUMBER_OF_RETRIES, globalNumberOfRetries);
+    fileCounters.setCounter(FileCounters.LOCAL_NUMBER_OF_RETRIES, localNumberOfRetries);
+    fileCounters.setCounter(FileCounters.PENDING_FILES, pendingFileCount);
 
-    idempotentStorageManager.setup(context);
-    if (context.getValue(OperatorContext.ACTIVATION_WINDOW_ID) < idempotentStorageManager.getLargestRecoveryWindow()) {
+    windowDataManager.setup(context);
+    if (context.getValue(OperatorContext.ACTIVATION_WINDOW_ID) < windowDataManager.getLargestCompletedWindow()) {
       //reset current file and offset in case of replay
       currentFile = null;
       offset = 0;
@@ -464,11 +483,10 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
     boolean fileFailed = false;
 
     try {
-      if(inputStream != null) {
+      if (inputStream != null) {
         inputStream.close();
       }
-    }
-    catch (IOException ex) {
+    } catch (IOException ex) {
       savedException = ex;
       fileFailed = true;
     }
@@ -477,33 +495,32 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
 
     try {
       fs.close();
-    }
-    catch (IOException ex) {
+    } catch (IOException ex) {
       savedException = ex;
       fsFailed = true;
     }
 
-    if(savedException != null) {
+    if (savedException != null) {
       String errorMessage = "";
 
-      if(fileFailed) {
+      if (fileFailed) {
         errorMessage += "Failed to close " + currentFile + ". ";
       }
 
-      if(fsFailed) {
+      if (fsFailed) {
         errorMessage += "Failed to close filesystem.";
       }
 
       throw new RuntimeException(errorMessage, savedException);
     }
-    idempotentStorageManager.teardown();
+    windowDataManager.teardown();
   }
 
   @Override
   public void beginWindow(long windowId)
   {
     currentWindowId = windowId;
-    if (windowId <= idempotentStorageManager.getLargestRecoveryWindow()) {
+    if (windowId <= windowDataManager.getLargestCompletedWindow()) {
       replay(windowId);
     }
   }
@@ -511,21 +528,18 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
   @Override
   public void endWindow()
   {
-    if (currentWindowId > idempotentStorageManager.getLargestRecoveryWindow()) {
+    if (currentWindowId > windowDataManager.getLargestCompletedWindow()) {
       try {
-        idempotentStorageManager.save(currentWindowRecoveryState, operatorId, currentWindowId);
-      }
-      catch (IOException e) {
+        windowDataManager.save(currentWindowRecoveryState, currentWindowId);
+      } catch (IOException e) {
         throw new RuntimeException("saving recovery", e);
       }
     }
     currentWindowRecoveryState.clear();
-    if(context != null) {
-      pendingFileCount.setValue(pendingFiles.size() +
-                                     failedFiles.size() +
-                                     unfinishedFiles.size());
+    if (context != null) {
+      pendingFileCount.setValue(pendingFiles.size() + failedFiles.size() + unfinishedFiles.size());
 
-      if(currentFile != null) {
+      if (currentFile != null) {
         pendingFileCount.increment();
       }
 
@@ -540,11 +554,11 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
     //all the recovery data for a window and then processes only those files which would be hashed
     //to it in the current run.
     try {
-      Map<Integer, Object> recoveryDataPerOperator = idempotentStorageManager.load(windowId);
+      Map<Integer, Object> recoveryDataPerOperator = windowDataManager.retrieveAllPartitions(windowId);
 
       for (Object recovery : recoveryDataPerOperator.values()) {
         @SuppressWarnings("unchecked")
-        LinkedList<RecoveryEntry> recoveryData = (LinkedList<RecoveryEntry>) recovery;
+        LinkedList<RecoveryEntry> recoveryData = (LinkedList<RecoveryEntry>)recovery;
 
         for (RecoveryEntry recoveryEntry : recoveryData) {
           if (scanner.acceptFile(recoveryEntry.file)) {
@@ -578,24 +592,32 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
                 pendingFiles.remove(recoveryEntry.file);
               }
               inputStream = retryFailedFile(new FailedFile(recoveryEntry.file, recoveryEntry.startOffset));
+
+              while (--skipCount >= 0) {
+                readEntity();
+              }
               while (offset < recoveryEntry.endOffset) {
                 T line = readEntity();
                 offset++;
                 emit(line);
               }
-            }
-            else {
+              if (recoveryEntry.fileClosed) {
+                closeFile(inputStream);
+              }
+            } else {
               while (offset < recoveryEntry.endOffset) {
                 T line = readEntity();
                 offset++;
                 emit(line);
+              }
+              if (recoveryEntry.fileClosed) {
+                closeFile(inputStream);
               }
             }
           }
         }
       }
-    }
-    catch (IOException e) {
+    } catch (IOException e) {
       throw new RuntimeException("replay", e);
     }
   }
@@ -604,7 +626,7 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
   @Override
   public void emitTuples()
   {
-    if (currentWindowId <= idempotentStorageManager.getLargestRecoveryWindow()) {
+    if (currentWindowId <= windowDataManager.getLargestCompletedWindow()) {
       return;
     }
 
@@ -612,7 +634,7 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
       try {
         if (currentFile != null && offset > 0) {
           //open file resets offset to 0 so this a way around it.
-          int tmpOffset = offset;
+          long tmpOffset = offset;
           if (fs.exists(new Path(currentFile))) {
             this.inputStream = openFile(new Path(currentFile));
             offset = tmpOffset;
@@ -622,30 +644,27 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
             offset = 0;
             skipCount = 0;
           }
-        }
-        else if (!unfinishedFiles.isEmpty()) {
+        } else if (!unfinishedFiles.isEmpty()) {
           retryFailedFile(unfinishedFiles.poll());
-        }
-        else if (!pendingFiles.isEmpty()) {
+        } else if (!pendingFiles.isEmpty()) {
           String newPathString = pendingFiles.iterator().next();
           pendingFiles.remove(newPathString);
-          if (fs.exists(new Path(newPathString)))
+          if (fs.exists(new Path(newPathString))) {
             this.inputStream = openFile(new Path(newPathString));
-        }
-        else if (!failedFiles.isEmpty()) {
+          }
+        } else if (!failedFiles.isEmpty()) {
           retryFailedFile(failedFiles.poll());
-        }
-        else {
+        } else {
           scanDirectory();
         }
-      }
-      catch (IOException ex) {
+      } catch (IOException ex) {
         failureHandling(ex);
       }
     }
     if (inputStream != null) {
-      int startOffset = offset;
+      long startOffset = offset;
       String file  = currentFile; //current file is reset to null when closed.
+      boolean fileClosed = false;
 
       try {
         int counterForTuple = 0;
@@ -654,6 +673,7 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
           if (line == null) {
             LOG.info("done reading file ({} entries).", offset);
             closeFile(inputStream);
+            fileClosed = true;
             break;
           }
 
@@ -664,18 +684,16 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
           if (skipCount == 0) {
             offset++;
             emit(line);
-          }
-          else {
+          } else {
             skipCount--;
           }
         }
-      }
-      catch (IOException e) {
+      } catch (IOException e) {
         failureHandling(e);
       }
-      //Only when something was emitted from the file then we record it for entry.
-      if (offset > startOffset) {
-        currentWindowRecoveryState.add(new RecoveryEntry(file, startOffset, offset));
+      //Only when something was emitted from the file, or we have a closeFile(), then we record it for entry.
+      if (offset >= startOffset) {
+        currentWindowRecoveryState.add(new RecoveryEntry(file, startOffset, offset, fileClosed));
       }
     }
   }
@@ -685,10 +703,10 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
    */
   protected void scanDirectory()
   {
-    if(System.currentTimeMillis() - scanIntervalMillis >= lastScanMillis) {
+    if (System.currentTimeMillis() - scanIntervalMillis >= lastScanMillis) {
       Set<Path> newPaths = scanner.scan(fs, filePath, processedFiles);
 
-      for(Path newPath : newPaths) {
+      for (Path newPath : newPaths) {
         String newPathString = newPath.toString();
         pendingFiles.add(newPathString);
         processedFiles.add(newPathString);
@@ -706,27 +724,28 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
   private void failureHandling(Exception e)
   {
     localNumberOfFailures.increment();
-    if(maxRetryCount <= 0) {
+    if (maxRetryCount <= 0) {
       throw new RuntimeException(e);
     }
     LOG.error("FS reader error", e);
     addToFailedList();
   }
 
-  protected void addToFailedList() {
-
+  protected void addToFailedList()
+  {
     FailedFile ff = new FailedFile(currentFile, offset, retryCount);
 
     try {
       // try to close file
-      if (this.inputStream != null)
+      if (this.inputStream != null) {
         this.inputStream.close();
-    } catch(IOException e) {
+      }
+    } catch (IOException e) {
       localNumberOfFailures.increment();
       LOG.error("Could not close input stream on: " + currentFile);
     }
 
-    ff.retryCount ++;
+    ff.retryCount++;
     ff.lastFailedTime = System.currentTimeMillis();
     ff.offset = this.offset;
 
@@ -734,8 +753,9 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
     this.currentFile = null;
     this.inputStream = null;
 
-    if (ff.retryCount > maxRetryCount)
+    if (ff.retryCount > maxRetryCount) {
       return;
+    }
 
     localNumberOfRetries.increment();
     LOG.info("adding to failed list path {} offset {} retry {}", ff.path, ff.offset, ff.retryCount);
@@ -746,8 +766,9 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
   {
     LOG.info("retrying failed file {} offset {} retry {}", ff.path, ff.offset, ff.retryCount);
     String path = ff.path;
-    if (!fs.exists(new Path(path)))
+    if (!fs.exists(new Path(path))) {
       return null;
+    }
     this.inputStream = openFile(new Path(path));
     this.offset = ff.offset;
     this.retryCount = ff.retryCount;
@@ -770,8 +791,9 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
   {
     LOG.info("closing file {} offset {}", currentFile, offset);
 
-    if (is != null)
+    if (is != null) {
       is.close();
+    }
 
     currentFile = null;
     inputStream = null;
@@ -805,7 +827,7 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
     List<String> totalPendingFiles = Lists.newLinkedList();
     Set<Integer> deletedOperators =  Sets.newHashSet();
 
-    for(Partition<AbstractFileInputOperator<T>> partition : partitions) {
+    for (Partition<AbstractFileInputOperator<T>> partition : partitions) {
       AbstractFileInputOperator<T> oper = partition.getPartitionedInstance();
       totalProcessedFiles.addAll(oper.processedFiles);
       totalFailedFiles.addAll(oper.failedFiles);
@@ -826,21 +848,14 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
      */
     List<DirectoryScanner> scanners = scanner.partition(totalCount, oldscanners);
 
-    Kryo kryo = new Kryo();
     Collection<Partition<AbstractFileInputOperator<T>>> newPartitions = Lists.newArrayListWithExpectedSize(totalCount);
-    Collection<IdempotentStorageManager> newManagers = Lists.newArrayListWithExpectedSize(totalCount);
+    List<WindowDataManager> newManagers = windowDataManager.partition(totalCount, deletedOperators);
 
-    for (int i=0; i<scanners.size(); i++) {
+    KryoCloneUtils<AbstractFileInputOperator<T>> cloneUtils = KryoCloneUtils.createCloneUtils(this);
+    for (int i = 0; i < scanners.size(); i++) {
 
-      // Kryo.copy fails as it attempts to clone transient fields
-      ByteArrayOutputStream bos = new ByteArrayOutputStream();
-      Output loutput = new Output(bos);
-      kryo.writeObject(loutput, this);
-      loutput.close();
-      Input lInput = new Input(bos.toByteArray());
       @SuppressWarnings("unchecked")
-      AbstractFileInputOperator<T> oper = kryo.readObject(lInput, this.getClass());
-      lInput.close();
+      AbstractFileInputOperator<T> oper = cloneUtils.getClone();
 
       DirectoryScanner scn = scanners.get(i);
       oper.setScanner(scn);
@@ -857,7 +872,7 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
       oper.currentFile = null;
       oper.offset = 0;
       Iterator<FailedFile> unfinishedIter = currentFiles.iterator();
-      while(unfinishedIter.hasNext()) {
+      while (unfinishedIter.hasNext()) {
         FailedFile unfinishedFile = unfinishedIter.next();
         if (scn.acceptFile(unfinishedFile.path)) {
           oper.unfinishedFiles.add(unfinishedFile);
@@ -879,18 +894,17 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
       /* redistribute pending files properly */
       oper.pendingFiles.clear();
       Iterator<String> pendingFilesIterator = totalPendingFiles.iterator();
-      while(pendingFilesIterator.hasNext()) {
+      while (pendingFilesIterator.hasNext()) {
         String pathString = pendingFilesIterator.next();
-        if(scn.acceptFile(pathString)) {
+        if (scn.acceptFile(pathString)) {
           oper.pendingFiles.add(pathString);
           pendingFilesIterator.remove();
         }
       }
+      oper.setWindowDataManager(newManagers.get(i));
       newPartitions.add(new DefaultPartition<AbstractFileInputOperator<T>>(oper));
-      newManagers.add(oper.idempotentStorageManager);
     }
 
-    idempotentStorageManager.partitioned(newManagers, deletedOperators);
     LOG.info("definePartitions called returning {} partitions", newPartitions.size());
     return newPartitions;
   }
@@ -907,6 +921,11 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
   }
 
   @Override
+  public void beforeCheckpoint(long windowId)
+  {
+  }
+
+  @Override
   public void checkpointed(long windowId)
   {
   }
@@ -915,9 +934,8 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
   public void committed(long windowId)
   {
     try {
-      idempotentStorageManager.deleteUpTo(operatorId, windowId);
-    }
-    catch (IOException e) {
+      windowDataManager.committed(windowId);
+    } catch (IOException e) {
       throw new RuntimeException(e);
     }
   }
@@ -925,16 +943,18 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
   /**
    * Read the next item from the stream. Depending on the type of stream, this could be a byte array, line or object.
    * Upon return of null, the stream will be considered fully consumed.
-   * @throws IOException
+   *
    * @return Depending on the type of stream an object is returned. When null is returned the stream is consumed.
+   * @throws IOException
    */
-  abstract protected T readEntity() throws IOException;
+  protected abstract T readEntity() throws IOException;
 
   /**
    * Emit the tuple on the port
+   *
    * @param tuple
    */
-  abstract protected void emit(T tuple);
+  protected abstract void emit(T tuple);
 
 
   /**
@@ -1001,17 +1021,21 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
       this.regex = null;
     }
 
-    public int getPartitionCount() {
+    public int getPartitionCount()
+    {
       return partitionCount;
     }
 
-    public int getPartitionIndex() {
+    public int getPartitionIndex()
+    {
       return partitionIndex;
     }
 
-    protected Pattern getRegex() {
-      if (this.regex == null && this.filePatternRegexp != null)
+    protected Pattern getRegex()
+    {
+      if (this.regex == null && this.filePatternRegexp != null) {
         this.regex = Pattern.compile(this.filePatternRegexp);
+      }
       return this.regex;
     }
 
@@ -1021,8 +1045,7 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
       try {
         LOG.debug("Scanning {} with pattern {}", filePath, this.filePatternRegexp);
         FileStatus[] files = fs.listStatus(filePath);
-        for (FileStatus status : files)
-        {
+        for (FileStatus status : files) {
           Path path = status.getPath();
           String filePathStr = path.toString();
 
@@ -1050,10 +1073,15 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
       return pathSet;
     }
 
+    protected int getPartition(String filePathStr)
+    {
+      return filePathStr.hashCode();
+    }
+
     protected boolean acceptFile(String filePathStr)
     {
       if (partitionCount > 1) {
-        int i = filePathStr.hashCode();
+        int i = getPartition(filePathStr);
         int mod = i % partitionCount;
         if (mod < 0) {
           mod += partitionCount;
@@ -1065,8 +1093,7 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
         }
       }
       Pattern regex = this.getRegex();
-      if (regex != null)
-      {
+      if (regex != null) {
         Matcher matcher = regex.matcher(filePathStr);
         if (!matcher.matches()) {
           return false;
@@ -1078,19 +1105,21 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
     public List<DirectoryScanner> partition(int count)
     {
       ArrayList<DirectoryScanner> partitions = Lists.newArrayListWithExpectedSize(count);
-      for (int i=0; i<count; i++) {
+      for (int i = 0; i < count; i++) {
         partitions.add(this.createPartition(i, count));
       }
       return partitions;
     }
 
-    public List<DirectoryScanner>  partition(int count , @SuppressWarnings("unused") Collection<DirectoryScanner> scanners) {
+    public List<DirectoryScanner>  partition(int count, @SuppressWarnings("unused") Collection<DirectoryScanner> scanners)
+    {
       return partition(count);
     }
 
     protected DirectoryScanner createPartition(int partitionIndex, int partitionCount)
     {
-      DirectoryScanner that = new DirectoryScanner();
+      KryoCloneUtils<DirectoryScanner> cloneUtils = KryoCloneUtils.createCloneUtils(this);
+      DirectoryScanner that = cloneUtils.getClone();
       that.filePatternRegexp = this.filePatternRegexp;
       that.regex = this.regex;
       that.partitionIndex = partitionIndex;
@@ -1104,13 +1133,24 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
       return "DirectoryScanner [filePatternRegexp=" + filePatternRegexp + " partitionIndex=" +
           partitionIndex + " partitionCount=" + partitionCount + "]";
     }
+
+    protected void setPartitionIndex(int partitionIndex)
+    {
+      this.partitionIndex = partitionIndex;
+    }
+
+    protected void setPartitionCount(int partitionCount)
+    {
+      this.partitionCount = partitionCount;
+    }
   }
 
   protected static class RecoveryEntry
   {
     final String file;
-    final int startOffset;
-    final int endOffset;
+    final long startOffset;
+    final long endOffset;
+    final boolean fileClosed;
 
     @SuppressWarnings("unused")
     private RecoveryEntry()
@@ -1118,13 +1158,15 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
       file = null;
       startOffset = -1;
       endOffset = -1;
+      fileClosed = false;
     }
 
-    RecoveryEntry(String file, int startOffset, int endOffset)
+    RecoveryEntry(String file, long startOffset, long endOffset, boolean fileClosed)
     {
       this.file = Preconditions.checkNotNull(file, "file");
       this.startOffset = startOffset;
       this.endOffset = endOffset;
+      this.fileClosed = fileClosed;
     }
 
     @Override
@@ -1137,12 +1179,15 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
         return false;
       }
 
-      RecoveryEntry that = (RecoveryEntry) o;
+      RecoveryEntry that = (RecoveryEntry)o;
 
       if (endOffset != that.endOffset) {
         return false;
       }
       if (startOffset != that.startOffset) {
+        return false;
+      }
+      if (fileClosed != that.fileClosed) {
         return false;
       }
       return file.equals(that.file);
@@ -1153,9 +1198,59 @@ public abstract class AbstractFileInputOperator<T> implements InputOperator, Par
     public int hashCode()
     {
       int result = file.hashCode();
-      result = 31 * result + startOffset;
-      result = 31 * result + endOffset;
+      result = 31 * result + (int)(startOffset & 0xFFFFFFFF);
+      result = 31 * result + (int)(endOffset & 0xFFFFFFFF);
       return result;
+    }
+  }
+
+  /**
+   * This class is deprecated, use {@link LineByLineFileInputOperator}
+   * <p>
+   * This is an implementation of the {@link AbstractFileInputOperator} that outputs the lines in a file.&nbsp;
+   * Each line is emitted as a separate tuple.&nbsp; It is emitted as a String.
+   * </p>
+   * <p>
+   * The directory path where to scan and read files from should be specified using the {@link #directory} property.
+   * </p>
+   * @deprecated
+   * @displayName File Line Input
+   * @category Input
+   * @tags fs, file, line, lines, input operator
+   *
+   */
+  public static class FileLineInputOperator extends AbstractFileInputOperator<String>
+  {
+    public final transient DefaultOutputPort<String> output = new DefaultOutputPort<String>();
+
+    protected transient BufferedReader br;
+
+    @Override
+    protected InputStream openFile(Path path) throws IOException
+    {
+      InputStream is = super.openFile(path);
+      br = new BufferedReader(new InputStreamReader(is));
+      return is;
+    }
+
+    @Override
+    protected void closeFile(InputStream is) throws IOException
+    {
+      super.closeFile(is);
+      br.close();
+      br = null;
+    }
+
+    @Override
+    protected String readEntity() throws IOException
+    {
+      return br.readLine();
+    }
+
+    @Override
+    protected void emit(String tuple)
+    {
+      output.emit(tuple);
     }
   }
 }

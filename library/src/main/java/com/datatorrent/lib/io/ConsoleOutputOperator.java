@@ -1,26 +1,31 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.io;
 
-import com.datatorrent.common.util.BaseOperator;
-import com.datatorrent.api.DefaultInputPort;
-import com.datatorrent.api.annotation.Stateless;
+import java.io.PrintStream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.datatorrent.api.DefaultInputPort;
+import com.datatorrent.api.annotation.Stateless;
+import com.datatorrent.common.util.BaseOperator;
 
 /**
  * Writes tuples to stdout of the container.
@@ -34,10 +39,13 @@ import org.slf4j.LoggerFactory;
  *
  * @since 0.3.2
  */
+@org.apache.hadoop.classification.InterfaceStability.Evolving
 @Stateless
 public class ConsoleOutputOperator extends BaseOperator
 {
   private static final Logger logger = LoggerFactory.getLogger(ConsoleOutputOperator.class);
+
+  private transient PrintStream stream = isStderr() ? System.err : System.out;
 
   /**
    * This is the input port which receives the tuples that will be written to stdout.
@@ -51,12 +59,11 @@ public class ConsoleOutputOperator extends BaseOperator
       String s;
       if (stringFormat == null) {
         s = t.toString();
-      }
-      else {
+      } else {
         s = String.format(stringFormat, t);
       }
       if (!silent) {
-        System.out.println(s);
+        stream.println(s);
       }
       if (debug) {
         logger.info(s);
@@ -85,6 +92,11 @@ public class ConsoleOutputOperator extends BaseOperator
    * When set to true, tuples are also logged at INFO level.
    */
   private boolean debug;
+
+  /**
+   * When set to true, output to stderr
+   */
+  private boolean stderr = false;
   /**
    * A formatter for {@link String#format}
    */
@@ -98,6 +110,17 @@ public class ConsoleOutputOperator extends BaseOperator
   public void setDebug(boolean debug)
   {
     this.debug = debug;
+  }
+
+  public boolean isStderr()
+  {
+    return stderr;
+  }
+
+  public void setStderr(boolean stderr)
+  {
+    this.stderr = stderr;
+    stream = stderr ? System.err : System.out;
   }
 
   public String getStringFormat()

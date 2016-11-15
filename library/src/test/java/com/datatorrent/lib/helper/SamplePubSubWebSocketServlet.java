@@ -1,17 +1,20 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.helper;
 
@@ -62,11 +65,9 @@ public class SamplePubSubWebSocketServlet extends WebSocketServlet
           if (topic != null) {
             subscriber = this;
           }
-        }
-        else if (type.equals("unsubscribe")) {
+        } else if (type.equals("unsubscribe")) {
           subscriber = null;
-        }
-        else if (type.equals("publish")) {
+        } else if (type.equals("publish")) {
           Object data = map.get("data");
           if (data != null) {
             if (subscriber != null) {
@@ -74,8 +75,7 @@ public class SamplePubSubWebSocketServlet extends WebSocketServlet
             }
           }
         }
-      }
-      catch (Exception ex) {
+      } catch (Exception ex) {
         LOG.warn("Data read error", ex);
       }
     }
@@ -106,8 +106,7 @@ public class SamplePubSubWebSocketServlet extends WebSocketServlet
     map.put("data", data);
     try {
       webSocket.connection.sendMessage(mapper.writeValueAsString(map));
-    }
-    catch (IOException ex) {
+    } catch (IOException ex) {
       LOG.warn("Connection send error", ex);
     }
   }

@@ -1,27 +1,31 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.demos.frauddetect;
 
-import com.datatorrent.common.util.BaseOperator;
-import com.datatorrent.api.DefaultInputPort;
-import com.datatorrent.api.DefaultOutputPort;
+import java.util.Map;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Map;
+import com.datatorrent.api.DefaultInputPort;
+import com.datatorrent.api.DefaultOutputPort;
+import com.datatorrent.common.util.BaseOperator;
 
 /**
  * Common utility class that can be used by all other operators to handle user input
@@ -38,7 +42,7 @@ public class MerchantTransactionInputHandler extends BaseOperator
   public static final String KEY_ZIP_CODE = "zipCode";
   public static final String KEY_AMOUNT = "amount";
   public transient DefaultOutputPort<MerchantTransaction> txOutputPort =
-          new DefaultOutputPort<MerchantTransaction>();
+      new DefaultOutputPort<MerchantTransaction>();
   public transient DefaultInputPort<Map<String, String>> userTxInputPort = new DefaultInputPort<Map<String, String>>()
   {
     @Override
@@ -46,8 +50,7 @@ public class MerchantTransactionInputHandler extends BaseOperator
     {
       try {
         txOutputPort.emit(processInput(tuple));
-      }
-      catch (Exception exc) {
+      } catch (Exception exc) {
         logger.error("Exception while handling the input", exc);
       }
     }
@@ -83,8 +86,7 @@ public class MerchantTransactionInputHandler extends BaseOperator
       }
     }
 
-    if (bankIdNum == null || ccNum == null || merchantId == null
-            || terminalId == null || zipCode == null || amount == null) {
+    if (bankIdNum == null || ccNum == null || merchantId == null || terminalId == null || zipCode == null || amount == null) {
       throw new IllegalArgumentException("Missing required input!");
     }
 

@@ -1,17 +1,20 @@
 /**
- * Copyright (C) 2015 DataTorrent, Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.demos.distributeddistinct;
 
@@ -26,20 +29,18 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.validation.constraints.Min;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.datatorrent.lib.algo.UniqueValueCount;
-import com.datatorrent.lib.algo.UniqueValueCount.InternalCountOutput;
-import com.datatorrent.lib.db.jdbc.JDBCLookupCacheBackedOperator;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import com.datatorrent.api.Context;
 import com.datatorrent.api.DefaultPartition;
 import com.datatorrent.api.Partitioner;
-
+import com.datatorrent.lib.algo.UniqueValueCount;
+import com.datatorrent.lib.algo.UniqueValueCount.InternalCountOutput;
+import com.datatorrent.lib.db.jdbc.JDBCLookupCacheBackedOperator;
 import com.datatorrent.netlet.util.DTThrowable;
 
 /**
@@ -88,7 +89,7 @@ public abstract class UniqueValueCountAppender<V> extends JDBCLookupCacheBackedO
   public void setup(Context.OperatorContext context)
   {
     super.setup(context);
-    LOGGER.debug("store properties {} {}", store.getDbDriver(), store.getDbUrl());
+    LOGGER.debug("store properties {} {}", store.getDatabaseDriver(), store.getDatabaseUrl());
     LOGGER.debug("table name {}", tableName);
     windowID = context.getValue(Context.OperatorContext.ACTIVATION_WINDOW_ID);
     try {
@@ -104,8 +105,7 @@ public abstract class UniqueValueCountAppender<V> extends JDBCLookupCacheBackedO
           deleteStatement.executeUpdate();
         }
       }
-    }
-    catch (SQLException e) {
+    } catch (SQLException e) {
       throw new RuntimeException(e);
     }
   }
@@ -116,7 +116,7 @@ public abstract class UniqueValueCountAppender<V> extends JDBCLookupCacheBackedO
 
     Object key = getKeyFromTuple(tuple);
     @SuppressWarnings("unchecked")
-    Set<Object> values = (Set<Object>) cacheManager.get(key);
+    Set<Object> values = (Set<Object>)cacheManager.get(key);
     if (values == null) {
       values = Sets.newHashSet();
     }
@@ -152,8 +152,7 @@ public abstract class UniqueValueCountAppender<V> extends JDBCLookupCacheBackedO
         putStatement.executeBatch();
         putStatement.clearBatch();
       }
-    }
-    catch (SQLException e) {
+    } catch (SQLException e) {
       throw new RuntimeException("while executing insert", e);
     }
   }
@@ -194,19 +193,9 @@ public abstract class UniqueValueCountAppender<V> extends JDBCLookupCacheBackedO
    * rollback, each partition will only clear the data that it is responsible for.
    */
   @Override
-  public Collection<com.datatorrent.api.Partitioner.Partition<UniqueValueCountAppender<V>>> definePartitions(Collection<com.datatorrent.api.Partitioner.Partition<UniqueValueCountAppender<V>>> partitions, int incrementalCapacity)
+  public Collection<com.datatorrent.api.Partitioner.Partition<UniqueValueCountAppender<V>>> definePartitions(Collection<com.datatorrent.api.Partitioner.Partition<UniqueValueCountAppender<V>>> partitions, PartitioningContext context)
   {
-    final int finalCapacity;
-
-    //In the case of parallel partitioning
-    if(incrementalCapacity != 0) {
-      finalCapacity = incrementalCapacity;
-    }
-    //Do normal partitioning
-    else {
-      finalCapacity = partitionCount;
-    }
-
+    final int finalCapacity = DefaultPartition.getRequiredPartitionCount(context, this.partitionCount);
     UniqueValueCountAppender<V> anOldOperator = partitions.iterator().next().getPartitionedInstance();
     partitions.clear();
 
@@ -218,8 +207,7 @@ public abstract class UniqueValueCountAppender<V> extends JDBCLookupCacheBackedO
         UniqueValueCountAppender<V> statefulUniqueCount = this.getClass().newInstance();
         DefaultPartition<UniqueValueCountAppender<V>> partition = new DefaultPartition<UniqueValueCountAppender<V>>(statefulUniqueCount);
         newPartitions.add(partition);
-      }
-      catch (Throwable cause) {
+      } catch (Throwable cause) {
         DTThrowable.rethrow(cause);
       }
     }

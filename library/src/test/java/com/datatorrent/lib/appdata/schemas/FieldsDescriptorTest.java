@@ -1,17 +1,20 @@
-/*
- * Copyright (c) 2015 DataTorrent, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package com.datatorrent.lib.appdata.schemas;
 
@@ -20,12 +23,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.junit.Assert;
+import org.junit.Test;
+
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-
-import org.junit.Assert;
-import org.junit.Test;
 
 public class FieldsDescriptorTest
 {
@@ -56,15 +59,15 @@ public class FieldsDescriptorTest
     fieldToType.put(doubleField, Type.DOUBLE);
 
     final List<String> expectedFieldList = Lists.newArrayList(boolField,
-                                                              charField,
-                                                              stringField,
-                                                              objectField,
-                                                              byteField,
-                                                              shortField,
-                                                              integerField,
-                                                              longField,
-                                                              floatField,
-                                                              doubleField);
+        charField,
+        stringField,
+        objectField,
+        byteField,
+        shortField,
+        integerField,
+        longField,
+        floatField,
+        doubleField);
 
     final Fields expectedFields = new Fields(Sets.newHashSet(expectedFieldList));
     final Set<Type> expectedTypes = Sets.newHashSet(fieldToType.values());
@@ -77,10 +80,8 @@ public class FieldsDescriptorTest
     Assert.assertEquals(Sets.newHashSet(), fd.getCompressedTypes());
     Assert.assertEquals(expectedFields, fd.getFields());
     Assert.assertEquals(fieldToType, fd.getFieldToType());
-    Assert.assertTrue(expectedTypes.containsAll(fd.getTypes()) &&
-                      fd.getTypes().containsAll(expectedTypes));
-    Assert.assertTrue(fd.getTypesList().containsAll(expectedTypes) &&
-                      expectedTypes.containsAll(fd.getTypesList()));
+    Assert.assertTrue(expectedTypes.containsAll(fd.getTypes()) && fd.getTypes().containsAll(expectedTypes));
+    Assert.assertTrue(fd.getTypesList().containsAll(expectedTypes) && expectedTypes.containsAll(fd.getTypesList()));
   }
 
   @Test
